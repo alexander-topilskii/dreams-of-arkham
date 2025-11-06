@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+/dist-sample/index.html
+/dist-sample/assets/index-BbvolhWH.js
+/dist-sample/assets/index-CaBiM5BR.css

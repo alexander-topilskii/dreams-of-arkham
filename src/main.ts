@@ -1,7 +1,7 @@
 import './style.css'
-import {createDraggabilly} from "./draggeble_utils.ts";
-import {MovablePanels} from "./movable_panels.ts";
-import { CardHand } from './card_hand.ts'
+import {createDraggabilly} from "./utils/draggeble_utils.ts";
+import {MovablePanels} from "./utils/movable_panels.ts";
+import { CardHand } from './utils/card_hand.ts'
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
@@ -12,7 +12,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
         <div id="left-split">
             <div id="left-top">
-                <div id="sample-hand"></div>
+              
             </div>
             <div id="left-bottom">
                 left bottom
@@ -23,6 +23,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="right">
         Правая панель
         text text
+          <div id="sample-hand"></div>
     </div>
 </div>
 `
