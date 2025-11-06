@@ -3,14 +3,20 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
 
-    "divider": "-------------------------------------",
     "dev:sample": "vite --config vite.sample.config.ts",
-    "build:sample": "vite build --config vite.sample.config.ts"
+    "build:sample": "vite build --config vite.sample.config.ts",
+    "preview:sample": "vite preview --config vite.sample.config.ts",
+
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rimraf dist dist-sample dist-sample-1 || true"
   },
   "dependencies": {
     "draggabilly": "^3.0.0",
@@ -18,7 +24,9 @@
   },
   "devDependencies": {
     "@types/draggabilly": "^3.0.0",
+    "@types/node": "^22.8.6",
     "typescript": "~5.9.3",
-    "vite": "^7.1.7"
+    "vite": "^7.2.1",
+    "rimraf": "^6.0.1"
   }
 }
