@@ -21,9 +21,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="right">
         Правая панель
         text text
-          <div id="sample-hand"></div>
     </div>
-</div>
+  </div>
+  <div id="hand-overlay">
+      <div class="card-hand-wrapper">
+          <div id="sample-hand"></div>
+      </div>
+  </div>
 `
 
 // -- ui components
