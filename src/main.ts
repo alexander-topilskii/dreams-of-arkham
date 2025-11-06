@@ -1,5 +1,4 @@
 import './style.css'
-import { setupCounter } from './counter.ts'
 import {createDraggabilly} from "./draggeble_utils.ts";
 import {MovablePanels} from "./movable_panels.ts";
 
@@ -29,5 +28,3 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 // -- ui components
 const draggableBox = createDraggabilly(document.getElementById('box')!)
 const movablePanels = new MovablePanels()
-
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
