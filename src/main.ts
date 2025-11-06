@@ -1,24 +1,33 @@
 import './style.css'
-import typescriptLogo from './typescript.svg'
-import viteLogo from '/vite.svg'
 import { setupCounter } from './counter.ts'
+import {createDraggabilly} from "./draggeble_utils.ts";
+import {MovablePanels} from "./movable_panels.ts";
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
+  <div id="main-split">
+    <div id="box"></div>
+
+    <div id="left">
+        Левая панель
+
+        <div id="left-split">
+            <div id="left-top">
+            </div>
+            <div id="left-bottom">
+                left bottom
+            </div>
+        </div>
+
     </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
+    <div id="right">
+        Правая панель
+        text text
+    </div>
+</div>
 `
+
+// -- ui components
+const draggableBox = createDraggabilly(document.getElementById('box')!)
+const movablePanels = new MovablePanels()
 
 setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)

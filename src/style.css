@@ -1,96 +1,113 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+    color-scheme: light dark;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #242424;
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+    width: 100%;
+    height: 100%;
+    --bg: #282830; /* основной цвет фона страницы */
+    --fg: #fff; /* основной цвет текста */
+    --gutter: #2b2f36; /* цвет разделителей Split.js */
+    --pad: 12px; /* стандартные внутренние отступы */
+    --gutter-size: 8px; /* ширина или высота разделителя */
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* отключаем прокрутку (панели займут всю область) */
+    background: var(--bg); /* задаём тёмный фон */
+    color: var(--fg); /* белый цвет текста */
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+    width: 100%;
+    height: 100%;
+    text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vanilla:hover {
-  filter: drop-shadow(0 0 2em #3178c6aa);
+*,
+*::before,
+*::after {
+    box-sizing: border-box; /* чтобы padding и border входили в размеры элемента */
 }
 
-.card {
-  padding: 2em;
+html, body {
+    height: 100%; /* растягиваем страницу на всю высоту окна */
+    width: 100%;
+    margin: 0; /* убираем стандартные отступы браузера */
 }
 
-.read-the-docs {
-  color: #888;
+
+canvas {
+    display: block; /* убираем отступы у canvas, чтобы не было inline-gap */
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* === Layout === */
+#main-split {
+    display: flex; /* основной контейнер — флекс-бокс */
+    flex-direction: row; /* располагаем панели по горизонтали */
+    height: 100%; /* растягиваем на всю высоту окна */
+    width: 100%; /* растягиваем на всю высоту окна */
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+#left-split {
+    width: 100%; /* левая часть заполняет доступное пространство */
+    height: 100%; /* растягиваем на всю высоту левой панели */
 }
+
+/* Общие отступы для панелей */
+.panel,
+#left,
+#right,
+#left-top,
+#left-bottom {
+    padding: var(--pad); /* добавляем одинаковые внутренние отступы */
+}
+
+/* === Split.js gutters === */
+.gutter {
+    background: var(--gutter); /* цвет разделительной полосы */
+}
+
+.gutter.gutter-horizontal {
+    width: var(--gutter-size); /* толщина горизонтального разделителя */
+    cursor: col-resize; /* курсор с двойной стрелкой по горизонтали */
+}
+
+.gutter.gutter-vertical {
+    height: var(--gutter-size); /* толщина вертикального разделителя */
+    cursor: row-resize; /* курсор с двойной стрелкой по вертикали */
+}
+
+/* === Перетаскиваемый блок === */
+#box {
+    position: absolute;
+    width: 120px; /* ширина блока */
+    height: 120px; /* высота блока */
+    background: #1e293b; /* цвет фона (тёмно-синий) */
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    z-index: 999;
+    backdrop-filter: blur(6px);
+    color: #fff; /* цвет текста */
+    display: flex; /* используем flex для центрирования текста */
+    align-items: center; /* вертикальное выравнивание по центру */
+    justify-content: center; /* горизонтальное выравнивание по центру */
+    cursor: grab; /* курсор-рука при наведении */
+    user-select: none; /* запрет выделения текста при перетаскивании */
+}
+
+#box:active {
+    cursor: grabbing; /* курсор при нажатии — “схватил” */
+}
+
