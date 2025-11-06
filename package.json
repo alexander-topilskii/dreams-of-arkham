@@ -8,6 +8,10 @@
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "draggabilly": "^3.0.0",
+    "split.js": "^1.6.5"
+  },
   "devDependencies": {
     "typescript": "~5.9.3",
     "vite": "^7.1.7"
