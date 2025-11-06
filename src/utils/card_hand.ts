@@ -21,11 +21,18 @@ export interface CardHandOptions {
     gap?: number
     cards?: string[]
     renderer?: CardRenderer
+    onCardSelected?: (card: CardSelectionInfo) => void
 }
 
 interface CardRecord {
     slot: HTMLDivElement
     card: HTMLElement
+    content: string
+}
+
+export interface CardSelectionInfo {
+    index: number
+    content: string
 }
 
 export class DefaultCardRenderer implements CardRenderer {
@@ -83,10 +90,48 @@ export class CardHand {
     private readonly cards: string[] = []
     private readonly cardRecords: CardRecord[] = []
     private readonly renderer: CardRenderer
+    private readonly onCardSelected: (card: CardSelectionInfo) => void
     private resizeObserver?: ResizeObserver
+    private lockedRecord?: CardRecord
+    private dragState?: {
+        pointerId: number
+        record: CardRecord
+        startX: number
+        originalLeft: number
+        originalIndex: number
+        currentLeft: number
+        hasMoved: boolean
+    }
+    private layoutStep: number
 
     private readonly handleResize = () => {
         this.layoutCards()
+    }
+
+    private readonly handleRootPointerDown = (event: PointerEvent) => {
+        if (!this.lockedRecord) {
+            return
+        }
+
+        const target = event.target as HTMLElement | null
+        const isCardTarget = target?.closest('.card-hand__slot')
+
+        if (!isCardTarget) {
+            this.clearLockedCard()
+        }
+    }
+
+    private readonly handleDocumentPointerDown = (event: PointerEvent) => {
+        if (!this.lockedRecord) {
+            return
+        }
+
+        const target = event.target as HTMLElement | null
+        if (target?.closest('.card-hand__slot')) {
+            return
+        }
+
+        this.clearLockedCard()
     }
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
@@ -95,10 +140,17 @@ export class CardHand {
         this.cardHeight = options.cardHeight ?? DEFAULT_CARD_HEIGHT
         this.gap = options.gap ?? DEFAULT_CARD_GAP
         this.renderer = options.renderer ?? new DefaultCardRenderer()
+        this.onCardSelected = (card) => {
+            options.onCardSelected?.(card)
+            console.log('[CardHand] Selected card:', card)
+        }
+        this.layoutStep = this.cardWidth + this.gap
 
         this.root.classList.add('card-hand')
         this.root.innerHTML = ''
         this.applyRootStyles()
+        this.root.addEventListener('pointerdown', this.handleRootPointerDown)
+        document.addEventListener('pointerdown', this.handleDocumentPointerDown, true)
 
         this.stackHost = document.createElement('div')
         this.stackHost.className = 'card-hand__stack'
@@ -143,6 +195,9 @@ export class CardHand {
     destroy() {
         this.resizeObserver?.disconnect()
         window.removeEventListener('resize', this.handleResize)
+        this.root.removeEventListener('pointerdown', this.handleRootPointerDown)
+        document.removeEventListener('pointerdown', this.handleDocumentPointerDown, true)
+        this.clearLockedCard()
         this.cardRecords.length = 0
         this.cards.length = 0
         this.stackHost.innerHTML = ''
@@ -174,6 +229,8 @@ export class CardHand {
         slot.style.justifyContent = 'center'
         slot.style.overflow = 'visible'
         slot.style.pointerEvents = 'auto'
+        slot.style.touchAction = 'none'
+        slot.dataset.state = 'resting'
 
         const card = this.renderer.createCard(content, {
             width: this.cardWidth,
@@ -199,12 +256,198 @@ export class CardHand {
         const record: CardRecord = {
             slot,
             card,
+            content,
         }
 
         slot.addEventListener('pointerenter', () => this.raiseCard(record))
         slot.addEventListener('pointerleave', () => this.lowerCard(record))
+        slot.addEventListener('pointerdown', (event) => this.handleCardPointerDown(event, record))
+        slot.addEventListener('pointermove', (event) => this.handleCardPointerMove(event, record))
+        slot.addEventListener('pointerup', (event) => this.handleCardPointerUp(event, record))
+        slot.addEventListener('pointercancel', (event) => this.handleCardPointerCancel(event, record))
+        slot.addEventListener('click', (event) => this.handleCardClick(event, record))
 
         return record
+    }
+
+    private handleCardPointerDown(event: PointerEvent, record: CardRecord) {
+        if (event.pointerType === 'mouse' && event.button !== 0) {
+            return
+        }
+
+        event.stopPropagation()
+
+        if (this.dragState) {
+            return
+        }
+
+        const originalLeft = Number.parseFloat(record.slot.style.left) || 0
+
+        this.dragState = {
+            pointerId: event.pointerId,
+            record,
+            startX: event.clientX,
+            originalLeft,
+            originalIndex: this.cardRecords.indexOf(record),
+            currentLeft: originalLeft,
+            hasMoved: false,
+        }
+
+        record.slot.setPointerCapture(event.pointerId)
+        record.slot.dataset.state = 'dragging'
+        record.slot.style.transition = 'none'
+        record.slot.style.zIndex = '10000'
+        record.slot.style.cursor = 'grabbing'
+
+        this.setCardRaisedState(record, true)
+    }
+
+    private handleCardPointerMove(event: PointerEvent, record: CardRecord) {
+        if (!this.dragState || this.dragState.pointerId !== event.pointerId) {
+            return
+        }
+
+        event.preventDefault()
+
+        const deltaX = event.clientX - this.dragState.startX
+        const nextLeft = this.dragState.originalLeft + deltaX
+
+        if (!this.dragState.hasMoved && Math.abs(deltaX) > 2) {
+            this.dragState.hasMoved = true
+        }
+
+        this.dragState.currentLeft = nextLeft
+        record.slot.style.left = `${nextLeft}px`
+    }
+
+    private handleCardPointerUp(event: PointerEvent, record: CardRecord) {
+        this.finishDrag(record, event.pointerId, false)
+    }
+
+    private handleCardPointerCancel(event: PointerEvent, record: CardRecord) {
+        this.finishDrag(record, event.pointerId, true)
+    }
+
+    private handleCardClick(event: MouseEvent, record: CardRecord) {
+        event.stopPropagation()
+
+        if (this.dragState?.record === record && this.dragState.hasMoved) {
+            return
+        }
+
+        if (this.lockedRecord === record) {
+            const index = this.cardRecords.indexOf(record)
+            if (index !== -1) {
+                this.onCardSelected({
+                    index,
+                    content: record.content,
+                })
+            }
+
+            this.clearLockedCard()
+            return
+        }
+
+        this.lockCard(record)
+    }
+
+    private finishDrag(record: CardRecord, pointerId: number, cancelled: boolean) {
+        if (!this.dragState || this.dragState.pointerId !== pointerId) {
+            return
+        }
+
+        const dragState = this.dragState
+        this.dragState = undefined
+
+        record.slot.releasePointerCapture(pointerId)
+        record.slot.style.cursor = ''
+        record.slot.style.transition = ''
+        record.slot.dataset.state = record.slot.dataset.locked === 'true' ? 'raised' : 'resting'
+
+        const shouldRemainRaised = record.slot.dataset.locked === 'true'
+        this.setCardRaisedState(record, shouldRemainRaised)
+
+        if (!dragState.hasMoved || cancelled) {
+            this.layoutCards()
+            return
+        }
+
+        const targetLeft = dragState.currentLeft
+        const newIndex = this.computeIndexFromLeft(targetLeft)
+        this.reorderRecord(record, newIndex)
+        this.layoutCards()
+    }
+
+    private computeIndexFromLeft(left: number): number {
+        if (this.cardRecords.length <= 1) {
+            return 0
+        }
+
+        const step = this.layoutStep || (this.cardWidth + this.gap)
+        const index = Math.round(left / step)
+        const maxIndex = this.cardRecords.length - 1
+
+        if (Number.isNaN(index)) {
+            return 0
+        }
+
+        return Math.min(Math.max(index, 0), maxIndex)
+    }
+
+    private reorderRecord(record: CardRecord, newIndex: number) {
+        const oldIndex = this.cardRecords.indexOf(record)
+
+        if (oldIndex === -1 || oldIndex === newIndex) {
+            return
+        }
+
+        this.cardRecords.splice(oldIndex, 1)
+        this.cardRecords.splice(newIndex, 0, record)
+
+        const [content] = this.cards.splice(oldIndex, 1)
+        this.cards.splice(newIndex, 0, content)
+
+        if (this.lockedRecord === record) {
+            this.lockedRecord = record
+        }
+    }
+
+    private lockCard(record: CardRecord) {
+        if (this.lockedRecord && this.lockedRecord !== record) {
+            this.clearLockedCard()
+        }
+
+        this.lockedRecord = record
+        record.slot.dataset.locked = 'true'
+        record.slot.dataset.state = 'raised'
+        record.slot.style.zIndex = '10000'
+
+        this.setCardRaisedState(record, true)
+    }
+
+    private clearLockedCard() {
+        const record = this.lockedRecord
+        if (!record) {
+            return
+        }
+
+        if (this.dragState?.record === record) {
+            return
+        }
+
+        delete record.slot.dataset.locked
+        record.slot.dataset.state = 'resting'
+        this.lockedRecord = undefined
+        this.setCardRaisedState(record, false)
+        this.layoutCards()
+    }
+
+    private setCardRaisedState(record: CardRecord, raised: boolean) {
+        if (this.renderer.setRaisedState) {
+            this.renderer.setRaisedState(record.card, raised)
+        } else {
+            this.applyDefaultRaisedState(record.card, raised)
+        }
     }
 
     private layoutCards() {
@@ -226,48 +469,66 @@ export class CardHand {
             step = Math.max(minStep, overlapStep)
         }
 
+        this.layoutStep = step
+
         this.stackHost.style.height = `${this.cardHeight + RAISE_TRANSLATE_Y}px`
 
         this.cardRecords.forEach((record, index) => {
+            if (record.slot.dataset.state === 'dragging') {
+                record.slot.style.zIndex = '10000'
+                return
+            }
+
             const left = Math.max(0, step * index)
             record.slot.style.left = `${left}px`
 
             const baseZ = 100 + index
             record.slot.dataset.baseZ = String(baseZ)
 
-            if (record.slot.dataset.state === 'raised') {
+            if (record.slot.dataset.locked === 'true') {
+                record.slot.style.zIndex = '10000'
+                this.setCardRaisedState(record, true)
+            } else if (record.slot.dataset.state === 'raised') {
                 record.slot.style.zIndex = '9999'
             } else {
                 record.slot.style.zIndex = String(baseZ)
+                if (record.slot.dataset.state !== 'raised') {
+                    this.setCardRaisedState(record, false)
+                }
             }
         })
     }
 
     private raiseCard(record: CardRecord) {
+        if (record.slot.dataset.state === 'dragging' || this.dragState?.record === record) {
+            return
+        }
+
+        if (record.slot.dataset.locked === 'true') {
+            record.slot.dataset.state = 'raised'
+            record.slot.style.zIndex = '10000'
+            this.setCardRaisedState(record, true)
+            return
+        }
+
         if (record.slot.dataset.state === 'raised') {
             return
         }
 
         record.slot.dataset.state = 'raised'
         record.slot.style.zIndex = '9999'
-
-        if (this.renderer.setRaisedState) {
-            this.renderer.setRaisedState(record.card, true)
-        } else {
-            this.applyDefaultRaisedState(record.card, true)
-        }
+        this.setCardRaisedState(record, true)
     }
 
-    private lowerCard(record: CardRecord) {
+    private lowerCard(record: CardRecord, force = false) {
+        if (!force && (record.slot.dataset.locked === 'true' || record.slot.dataset.state === 'dragging')) {
+            return
+        }
+
         record.slot.dataset.state = 'resting'
         const baseZ = record.slot.dataset.baseZ
         record.slot.style.zIndex = baseZ ?? '1'
-
-        if (this.renderer.setRaisedState) {
-            this.renderer.setRaisedState(record.card, false)
-        } else {
-            this.applyDefaultRaisedState(record.card, false)
-        }
+        this.setCardRaisedState(record, false)
     }
 
     private applyDefaultRaisedState(card: HTMLElement, raised: boolean) {
