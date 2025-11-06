@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+
+    "divider": "-------------------------------------",
+    "dev:sample": "vite --config vite.sample.config.ts",
+    "build:sample": "vite build --config vite.sample.config.ts"
   },
   "dependencies": {
     "draggabilly": "^3.0.0",

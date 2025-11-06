@@ -1,0 +1,53 @@
+:root {
+    --card-w: 88px;
+    --card-h: 124px;
+    --lift: 28px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: #0b1020; color: #e5e7eb; font-family: ui-sans-serif, system-ui; }
+
+#table {
+    height: 100%;
+    display: grid;
+    place-items: end center;
+    padding-bottom: 48px;
+    perspective: 1200px;
+}
+
+#hand {
+    position: relative;
+    height: calc(var(--card-h) + 60px);
+    width: min(90vw, 720px);
+    transform: rotateX(12deg);
+    transform-origin: center bottom;
+}
+
+.card {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: var(--card-w);
+    height: var(--card-h);
+    margin-left: calc(-1 * var(--card-w) / 2);
+    background: linear-gradient(#ffffff, #f1f5f9);
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.35);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    user-select: none;
+    cursor: grab;
+    transition: transform .18s ease, box-shadow .18s ease, translate .18s ease;
+    will-change: transform, translate;
+}
+
+.card:hover { translate: 0 calc(-1 * var(--lift)); box-shadow: 0 10px 26px rgba(0,0,0,.5); }
+.card.is-selected { outline: 3px solid #38bdf8; }
+
+.card:active { cursor: grabbing; }
+
+@media (max-width: 520px) {
+    :root { --card-w: 72px; --card-h: 102px; --lift: 22px; }
+}
