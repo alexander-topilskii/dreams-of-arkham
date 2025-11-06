@@ -7,3 +7,7 @@
 ```bash
 npm install
 npm run dev
+```
+
+## Demo
+https://alexander-topilskii.github.io/dreams-of-arkham/ 
