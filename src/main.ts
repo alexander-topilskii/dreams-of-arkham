@@ -1,14 +1,14 @@
 import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
-import { SimpleCardHand } from "./widgets/simple-card-hand/simple-card-hand";
+import { SimpleCardHand, type SimpleCardContent } from "./widgets/simple-card-hand/simple-card-hand";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 
 type CardsConfig = {
-    initialHand: string[];
+    initialHand: SimpleCardContent[];
 };
 
 type VictoryProgress = {
@@ -210,10 +210,38 @@ if (debugRoot) {
 
     const cardsGroup = createDebugGroup('Карты');
     const addCardButton = createDebugButton('Добавить карту', () => {
-        simpleHand.addCard(`Случайная карта ${Math.floor(Math.random() * 1000)}`)
+        simpleHand.addCard(createRandomCard());
     });
     cardsGroup.appendChild(addCardButton);
     panel.appendChild(cardsGroup);
+}
+
+function createRandomCard(): SimpleCardContent {
+    const seed = Math.floor(Math.random() * 1000)
+    const id = `debug-${Date.now()}-${seed}`
+    const palette = ['#1d4ed8', '#0ea5e9', '#22c55e', '#6366f1', '#f97316', '#ec4899']
+    const base = palette[seed % palette.length]
+    const accent = palette[(seed + 3) % palette.length]
+    const textColor = '#f8fafc'
+    const svg = `
+        <svg xmlns='http://www.w3.org/2000/svg' width='320' height='200' viewBox='0 0 320 200'>
+            <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stop-color='${base}' />
+                    <stop offset='100%' stop-color='${accent}' />
+                </linearGradient>
+            </defs>
+            <rect width='320' height='200' rx='24' fill='url(#g)' />
+            <text x='50%' y='50%' fill='${textColor}' font-family='system-ui, sans-serif' font-size='28' text-anchor='middle' dominant-baseline='middle'>${seed}</text>
+        </svg>
+    `
+    const image = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    return {
+        id,
+        title: `Случайная карта ${seed}`,
+        description: 'Экспериментальная карта для отладки интерфейса.',
+        image,
+    }
 }
 
 function createPhase<Progress extends Record<string, number | boolean>>(

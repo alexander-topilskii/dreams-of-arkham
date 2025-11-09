@@ -1,0 +1,13 @@
+<svg width="320" height="440" viewBox="0 0 320 440" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="320" height="440" rx="24" fill="url(#bg)"/>
+  <path d="M36 280C78 232 126 232 182 280C238 328 286 328 328 280" stroke="#38bdf8" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <circle cx="92" cy="230" r="18" fill="#bae6fd" opacity="0.8"/>
+  <circle cx="204" cy="250" r="12" fill="#bae6fd" opacity="0.7"/>
+  <text x="50%" y="360" font-family="'Segoe UI', sans-serif" font-size="32" fill="#bfdbfe" text-anchor="middle">Инсмут</text>
+</svg>

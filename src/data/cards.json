@@ -1,9 +1,34 @@
 {
   "initialHand": [
-    "Мистическое видение",
-    "Улики улицы Инсмут",
-    "Загадочный ключ",
-    "Зов Бездны",
-    "Талисман хранителя"
+    {
+      "id": "mystic-vision",
+      "title": "Мистическое видение",
+      "description": "Проясняет судьбу и открывает скрытые подсказки.",
+      "image": "/images/cards/mystic-vision.svg"
+    },
+    {
+      "id": "innsmouth-clues",
+      "title": "Улики улицы Инсмут",
+      "description": "Следы культистов ведут по затопленным улочкам.",
+      "image": "/images/cards/innsmouth-clues.svg"
+    },
+    {
+      "id": "enigmatic-key",
+      "title": "Загадочный ключ",
+      "description": "Открывает двери, которые лучше бы оставались закрытыми.",
+      "image": "/images/cards/enigmatic-key.svg"
+    },
+    {
+      "id": "abyss-call",
+      "title": "Зов Бездны",
+      "description": "Соблазняет обещаниями силы, но требует осторожности.",
+      "image": "/images/cards/abyss-call.svg"
+    },
+    {
+      "id": "guardian-talisman",
+      "title": "Талисман хранителя",
+      "description": "Укрепляет волю и защищает от чуждых влияний.",
+      "image": "/images/cards/guardian-talisman.svg"
+    }
   ]
 }

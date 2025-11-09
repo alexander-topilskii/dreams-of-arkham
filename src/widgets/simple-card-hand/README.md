@@ -1,3 +1,21 @@
 # Simple Card Hand Widget
 
-Exposes `SimpleCardHand` for lightweight rendering of selectable cards; instantiate with a container and optional sizing to show static hands quickly.
+Панель отображает перетаскиваемую колоду карточек с изображением и описанием.
+
+## Возможности
+- Отображение до пяти карт одновременно; остальные собираются в «веер» слева и справа.
+- Навигация по колоде стрелками, перелистывающими группы по пять карт.
+- Щёлкните по карте, чтобы подсветить её.
+- Верхняя часть панели содержит область для перетаскивания, позволяя переносить виджет в любое место экрана.
+- Панель адаптируется по ширине экрана, имеет тень, скругления и анимации наведения.
+
+## Использование
+```ts
+import { SimpleCardHand } from "./widgets/simple-card-hand/simple-card-hand";
+
+const hand = new SimpleCardHand(undefined, {
+  cards: myCards, // массив объектов {id, title, description, image}
+});
+```
+
+В режиме отладки можно вызывать `hand.addCard(...)`, чтобы добавить новую карту в панель.

@@ -1,0 +1,13 @@
+<svg width="320" height="440" viewBox="0 0 320 440" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#312e81"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="320" height="440" rx="24" fill="url(#bg)"/>
+  <circle cx="160" cy="170" r="92" fill="rgba(255,255,255,0.18)"/>
+  <circle cx="160" cy="170" r="54" fill="rgba(255,255,255,0.32)"/>
+  <path d="M160 110L178 166H142L160 110Z" fill="#f8fafc" opacity="0.85"/>
+  <text x="50%" y="340" font-family="'Segoe UI', sans-serif" font-size="32" fill="#e0f2fe" text-anchor="middle">Видение</text>
+</svg>
