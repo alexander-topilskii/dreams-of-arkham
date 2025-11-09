@@ -1,9 +1,9 @@
 import './style.css'
-import {createDraggabilly} from "./utils/draggeble_utils.ts";
-import {MovablePanels} from "./utils/movable_panels.ts";
-import {SimpleCardHand} from "./utils/simple_card_hand";
-import {GameLoopPanel, type GamePhase} from "./utils/game_loop_panel";
-import {createDebugButton} from "./utils/debug";
+import {createDraggabilly} from "./widgets/draggeble_utils.ts";
+import {MovablePanels} from "./widgets/movable_panels.ts";
+import {SimpleCardHand} from "./widgets/simple_card_hand";
+import {GameLoopPanel, type GamePhase} from "./widgets/game_loop_panel";
+import {createDebugButton} from "./widgets/debug";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 
