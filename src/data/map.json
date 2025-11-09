@@ -1,0 +1,63 @@
+{
+  "territories": [
+    {
+      "id": "eclipsed-square",
+      "back": {
+        "title": "Затуманенная площадь"
+      },
+      "front": {
+        "title": "Площадь Затмения",
+        "description": "Торговцы и странники собираются у ослепляющего обелиска. Здесь всегда шумно, и легко потеряться в толпе.",
+        "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><radialGradient id='g' cx='50%' cy='40%' r='70%'><stop offset='0%' stop-color='%23facc15'/><stop offset='100%' stop-color='%237c2d12'/></radialGradient></defs><rect width='320' height='320' fill='url(%23g)'/><circle cx='160' cy='140' r='60' fill='rgba(15,23,42,0.35)'/><rect x='148' y='90' width='24' height='140' rx='6' fill='rgba(248,250,252,0.55)'/></svg>"
+      },
+      "position": { "x": -120, "y": -40 },
+      "connections": [
+        { "targetId": "mistway-docks", "type": "two-way" },
+        { "targetId": "archive-gate", "type": "one-way" }
+      ]
+    },
+    {
+      "id": "mistway-docks",
+      "back": {
+        "title": "Заброшенные доки"
+      },
+      "front": {
+        "title": "Пристань Туманного Пути",
+        "description": "Старые баржи шепчут о дальних путешествиях. Вода светится от фосфоресцирующих водорослей.",
+        "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23014f86'/><stop offset='100%' stop-color='%2303b0aa'/></linearGradient></defs><rect width='320' height='320' fill='url(%23g)'/><path d='M0 220 L320 200 L320 260 L0 300 Z' fill='rgba(15,23,42,0.6)'/><rect x='40' y='120' width='40' height='110' fill='rgba(203,213,225,0.45)'/><rect x='120' y='100' width='36' height='130' fill='rgba(203,213,225,0.6)'/></svg>"
+      },
+      "position": { "x": 140, "y": 20 },
+      "connections": [
+        { "targetId": "scarlet-observatory", "type": "two-way" }
+      ]
+    },
+    {
+      "id": "archive-gate",
+      "back": {
+        "title": "Запечатанная арка"
+      },
+      "front": {
+        "title": "Врата Архива",
+        "description": "Массивные двери из чёрного базальта, покрытые письменами. Чувствуется лёгкое гудение энергий.",
+        "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><rect width='320' height='320' fill='%2311223d'/><path d='M80 280 L160 40 L240 280 Z' fill='rgba(56,189,248,0.55)'/><path d='M140 200 L160 120 L180 200 Z' fill='rgba(15,23,42,0.65)'/></svg>"
+      },
+      "position": { "x": -220, "y": 220 },
+      "connections": [
+        { "targetId": "scarlet-observatory", "type": "one-way" }
+      ]
+    },
+    {
+      "id": "scarlet-observatory",
+      "back": {
+        "title": "Укрытая башня"
+      },
+      "front": {
+        "title": "Багровая обсерватория",
+        "description": "Выступы линз направлены прямо в бездну. Каждый луч оставляет после себя алые следы.",
+        "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0%' stop-color='%23f43f5e'/><stop offset='100%' stop-color='%237f1d1d'/></linearGradient></defs><rect width='320' height='320' fill='url(%23g)'/><circle cx='160' cy='120' r='64' fill='rgba(15,23,42,0.45)'/><path d='M80 220 L160 120 L240 220 Z' fill='rgba(248,250,252,0.15)'/></svg>"
+      },
+      "position": { "x": 120, "y": 260 },
+      "connections": []
+    }
+  ]
+}
