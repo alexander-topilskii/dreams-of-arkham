@@ -81,6 +81,8 @@ export class DefaultCardRenderer implements CardRenderer {
     }
 }
 
+
+
 export class CardHand {
     private readonly root: HTMLElement
     private readonly stackHost: HTMLDivElement
