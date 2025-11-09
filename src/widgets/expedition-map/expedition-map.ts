@@ -31,7 +31,6 @@ type TerritoryView = {
 
 const HEX_WIDTH = 156;
 const HEX_HEIGHT = 180;
-const DRAG_ACTIVATION_DELAY = 220;
 const MOVE_THRESHOLD = 6;
 
 const styleId = 'expedition-map-styles';
@@ -73,6 +72,7 @@ const styles = `
     will-change: transform;
 }
 
+
 .expedition-map__connections {
     position: absolute;
     top: 0;
@@ -80,6 +80,7 @@ const styles = `
     width: 100%;
     height: 100%;
     pointer-events: none;
+    z-index: 0;
 }
 
 .expedition-map__territories {
@@ -89,6 +90,7 @@ const styles = `
     width: 100%;
     height: 100%;
     pointer-events: none;
+    z-index: 1;
 }
 
 .expedition-map__territories > .map-territory {
@@ -497,7 +499,6 @@ export class ExpeditionMap {
 
     private attachTerritoryInteractions(element: HTMLDivElement, territory: Territory) {
         let isDragging = false;
-        let pressTimer: ReturnType<typeof setTimeout> | null = null;
         let pointerId: number | null = null;
         let startX = 0;
         let startY = 0;
@@ -506,10 +507,6 @@ export class ExpeditionMap {
         let moved = false;
 
         const cleanup = () => {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                pressTimer = null;
-            }
             if (pointerId !== null) {
                 element.releasePointerCapture(pointerId);
             }
@@ -539,11 +536,9 @@ export class ExpeditionMap {
             }
 
             if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
+                isDragging = true;
                 moved = true;
-                if (pressTimer) {
-                    clearTimeout(pressTimer);
-                    pressTimer = null;
-                }
+                element.classList.add('is-dragging');
             }
         };
 
@@ -579,12 +574,6 @@ export class ExpeditionMap {
             moved = false;
 
             element.setPointerCapture(pointerId);
-
-            pressTimer = setTimeout(() => {
-                isDragging = true;
-                element.classList.add('is-dragging');
-                pressTimer = null;
-            }, DRAG_ACTIVATION_DELAY);
 
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp);
