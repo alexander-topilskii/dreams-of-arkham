@@ -6,6 +6,13 @@ import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-lo
 import { createDebugButton } from "./widgets/debug/debug";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
+import mapSource from "./data/map.json";
+import {
+    ExpeditionMap,
+    type ExpeditionMapConfig,
+    type Territory,
+    type TerritoryConnectionType,
+} from "./widgets/expedition-map/expedition-map";
 
 type CardsConfig = {
     initialHand: SimpleCardContent[];
@@ -68,6 +75,7 @@ type BooleanControlConfig = {
 
 const cardsConfig = cardsSource as CardsConfig;
 const rulesConfig = rulesSource as RulesConfig;
+const expeditionMapConfig = mapSource as ExpeditionMapConfig;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
@@ -83,8 +91,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
     </div>
     <div id="right">
-        Правая панель
-        text text
+        <div class="panel-title">Правая панель</div>
+        <div id="map-panel"></div>
     </div>
   </div>
 `
@@ -97,6 +105,9 @@ const handRoot = document.getElementById('sample-hand')
 const simpleHand = new SimpleCardHand(handRoot, {
     cards: cardsConfig.initialHand,
 })
+
+const mapContainer = document.getElementById('map-panel');
+const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
 
 // -- game loop timelines
 const victoryProgress: VictoryProgress = {
@@ -214,6 +225,13 @@ if (debugRoot) {
     });
     cardsGroup.appendChild(addCardButton);
     panel.appendChild(cardsGroup);
+
+    const mapGroup = createDebugGroup('Карта');
+    const addTerritoryButton = createDebugButton('Добавить территорию', () => {
+        expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
+    });
+    mapGroup.appendChild(addTerritoryButton);
+    panel.appendChild(mapGroup);
 }
 
 function createRandomCard(): SimpleCardContent {
@@ -241,6 +259,57 @@ function createRandomCard(): SimpleCardContent {
         title: `Случайная карта ${seed}`,
         description: 'Экспериментальная карта для отладки интерфейса.',
         image,
+    }
+}
+
+function createRandomTerritory(map: ExpeditionMap): Territory {
+    const seed = Math.floor(Math.random() * 1000)
+    const id = `debug-territory-${Date.now()}-${seed}`
+    const palette = ['#0ea5e9', '#22d3ee', '#a855f7', '#f97316', '#f43f5e', '#22c55e']
+    const base = palette[seed % palette.length]
+    const accent = palette[(seed + 3) % palette.length]
+    const glow = palette[(seed + 1) % palette.length]
+    const svg = `
+        <svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'>
+            <defs>
+                <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stop-color='${base}' />
+                    <stop offset='100%' stop-color='${accent}' />
+                </linearGradient>
+            </defs>
+            <rect width='320' height='320' fill='url(#bg)' />
+            <circle cx='160' cy='120' r='72' fill='${glow}' opacity='0.35' />
+            <path d='M80 260 L160 140 L240 260 Z' fill='rgba(15,23,42,0.45)' />
+        </svg>
+    `
+    const image = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+
+    const existing = map.getTerritoryIds()
+    const connections: { targetId: string; type: TerritoryConnectionType }[] = []
+    if (existing.length > 0) {
+        const targetId = existing[Math.floor(Math.random() * existing.length)]
+        const type: TerritoryConnectionType = Math.random() > 0.5 ? 'two-way' : 'one-way'
+        connections.push({ targetId, type })
+    }
+
+    const angle = Math.random() * Math.PI * 2
+    const distance = 120 + Math.random() * 180
+
+    return {
+        id,
+        back: {
+            title: `Неизведанная область ${seed}`,
+        },
+        front: {
+            title: `Исследованная область ${seed}`,
+            description: 'Временная территория для проверки интерфейса карты.',
+            image,
+        },
+        position: {
+            x: Math.round(Math.cos(angle) * distance),
+            y: Math.round(Math.sin(angle) * distance),
+        },
+        connections,
     }
 }
 

@@ -66,6 +66,33 @@ canvas {
     height: 100%; /* растягиваем на всю высоту левой панели */
 }
 
+#right {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin: 0;
+    text-align: left;
+}
+
+#map-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+#map-panel > * {
+    flex: 1;
+    min-width: 0;
+}
+
 /* Общие отступы для панелей */
 .panel,
 #left,
