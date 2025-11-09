@@ -5,19 +5,20 @@ export interface GamePhase {
     description: string;
     /** Путь до иллюстрации (может быть пустым) */
     image?: string;
-    /** Время до завершения фазы в секундах */
-    duration: number;
     /**
      * Пользовательское условие завершения фазы.
      * Если возвращает true — фаза считается выполненной независимо от таймера.
      */
     condition?: () => boolean;
+    /** Дополнительное описание требования для отображения в статусе */
+    statusLabel?: string;
+    /** Текущий прогресс, отображаемый рядом со статусом */
+    statusValue?: () => string;
 }
 
 interface TimelineState {
     phases: GamePhase[];
     currentIndex: number;
-    remaining: number;
     isComplete: boolean;
     elements: TimelineElements;
 }
@@ -37,8 +38,6 @@ interface TimelineElements {
 export interface GameLoopConfig {
     victoryPhases: GamePhase[];
     defeatPhases: GamePhase[];
-    /** Интервал обновления таймеров в миллисекундах. По умолчанию — 1 секунда. */
-    tickIntervalMs?: number;
 }
 
 const STYLE_ID = "game-loop-panel-style";
@@ -168,7 +167,6 @@ export class GameLoopPanel {
     private container: HTMLDivElement;
     private victoryTimeline: TimelineState;
     private defeatTimeline: TimelineState;
-    private intervalId: number | null = null;
 
     constructor(private readonly host: HTMLElement | null, private readonly config: GameLoopConfig) {
         if (!host) {
@@ -190,43 +188,10 @@ export class GameLoopPanel {
 
         this.renderTimeline(this.victoryTimeline);
         this.renderTimeline(this.defeatTimeline);
-        this.start();
     }
 
     destroy() {
-        if (this.intervalId !== null) {
-            window.clearInterval(this.intervalId);
-            this.intervalId = null;
-        }
-
         this.host?.removeChild(this.container);
-    }
-
-    private start() {
-        const interval = this.config.tickIntervalMs ?? 1000;
-        if (interval <= 0) {
-            throw new Error("GameLoopPanel: tickIntervalMs must be greater than 0");
-        }
-
-        this.intervalId = window.setInterval(() => this.tick(), interval);
-    }
-
-    private tick() {
-        [this.victoryTimeline, this.defeatTimeline].forEach((timeline) => {
-            if (timeline.isComplete) {
-                return;
-            }
-
-            timeline.remaining = Math.max(0, timeline.remaining - 1);
-            this.updateCounter(timeline);
-
-            const currentPhase = timeline.phases[timeline.currentIndex];
-            const conditionSatisfied = currentPhase?.condition?.() ?? false;
-
-            if (timeline.remaining === 0 || conditionSatisfied) {
-                this.advanceTimeline(timeline);
-            }
-        });
     }
 
     private createTimeline(title: string, phases: GamePhase[], kind: "victory" | "defeat"): TimelineState {
@@ -273,7 +238,6 @@ export class GameLoopPanel {
         return {
             phases,
             currentIndex: 0,
-            remaining: phases[0]?.duration ?? 0,
             isComplete: phases.length === 0,
             elements: {
                 container,
@@ -296,15 +260,10 @@ export class GameLoopPanel {
         }
 
         const phase = timeline.phases[timeline.currentIndex];
-        timeline.remaining = phase.duration;
-
         const {phaseTitle, phaseDescription, phaseImage, counter, statusLabel} = timeline.elements;
 
         phaseTitle.textContent = phase.title;
         phaseDescription.textContent = phase.description;
-        counter.textContent = this.formatTime(timeline.remaining);
-
-        statusLabel.textContent = `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length}`;
 
         if (phase.image) {
             phaseImage.src = phase.image;
@@ -313,10 +272,45 @@ export class GameLoopPanel {
         } else {
             phaseImage.hidden = true;
         }
+
+        const statusText = phase.statusLabel
+            ? `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length} · ${phase.statusLabel}`
+            : `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length}`;
+
+        statusLabel.textContent = statusText;
+        counter.textContent = phase.statusValue?.() ?? "В процессе";
     }
 
-    private updateCounter(timeline: TimelineState) {
-        timeline.elements.counter.textContent = this.formatTime(timeline.remaining);
+    evaluate() {
+        this.evaluateTimeline(this.victoryTimeline);
+        this.evaluateTimeline(this.defeatTimeline);
+    }
+
+    private evaluateTimeline(timeline: TimelineState) {
+        if (timeline.isComplete) {
+            return;
+        }
+
+        const phase = timeline.phases[timeline.currentIndex];
+
+        if (!phase) {
+            this.markComplete(timeline);
+            return;
+        }
+
+        this.refreshStatus(timeline, phase);
+
+        if (phase.condition?.()) {
+            this.advanceTimeline(timeline);
+            this.evaluateTimeline(timeline);
+        }
+    }
+
+    private refreshStatus(timeline: TimelineState, phase: GamePhase) {
+        const {statusLabel, counter} = timeline.elements;
+        const baseText = `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length}`;
+        statusLabel.textContent = phase.statusLabel ? `${baseText} · ${phase.statusLabel}` : baseText;
+        counter.textContent = phase.statusValue?.() ?? "В процессе";
     }
 
     private advanceTimeline(timeline: TimelineState) {
@@ -333,7 +327,7 @@ export class GameLoopPanel {
 
     private markComplete(timeline: TimelineState) {
         timeline.elements.container.dataset.complete = "true";
-        timeline.elements.counter.textContent = "—";
+        timeline.elements.counter.textContent = "Завершено";
 
         const completionText = timeline.phases.length > 0
             ? timeline === this.victoryTimeline
@@ -342,12 +336,5 @@ export class GameLoopPanel {
             : "Нет активных фаз";
 
         timeline.elements.statusLabel.textContent = completionText;
-    }
-
-    private formatTime(totalSeconds: number) {
-        const clamped = Math.max(0, Math.floor(totalSeconds));
-        const minutes = Math.floor(clamped / 60);
-        const seconds = clamped % 60;
-        return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 }

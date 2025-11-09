@@ -1,0 +1,72 @@
+{
+  "victory": [
+    {
+      "title": "Сбор улик",
+      "description": "Агенты обследуют Мискатоник и собирают улики, чтобы понять слабости Древнего.",
+      "image": "/icon.svg",
+      "requirement": {
+        "label": "Соберите 3 улики",
+        "type": "counter",
+        "progressKey": "collectedClues",
+        "target": 3
+      }
+    },
+    {
+      "title": "Расшифровка гримуара",
+      "description": "Прорицатели объединяют усилия, чтобы собрать ритуал изгнания по найденным фрагментам.",
+      "image": "/icon.jpg",
+      "requirement": {
+        "label": "Найдите 2 сегмента ритуала",
+        "type": "counter",
+        "progressKey": "ritualSegments",
+        "target": 2
+      }
+    },
+    {
+      "title": "Ритуал печати",
+      "description": "Команда проводит обряд запечатывания портала, удерживая полчища культистов.",
+      "image": "/cthulhu.svg",
+      "requirement": {
+        "label": "Активируйте финальную печать",
+        "type": "flag",
+        "progressKey": "finalSeal",
+        "target": true
+      }
+    }
+  ],
+  "defeat": [
+    {
+      "title": "Рост гибели",
+      "description": "Культисты наращивают присутствие, распространяя ужас по улицам Аркхэма.",
+      "image": "/icon.jpg",
+      "requirement": {
+        "label": "Накопите 4 очка гибели",
+        "type": "counter",
+        "progressKey": "doom",
+        "target": 4
+      }
+    },
+    {
+      "title": "Темный ритуал",
+      "description": "Чёрные свечи гаснут одна за другой — культисты завершают подготовку портала.",
+      "image": "/icon.svg",
+      "requirement": {
+        "label": "Завершите 3 действия культа",
+        "type": "counter",
+        "progressKey": "cultActivity",
+        "target": 3
+      }
+    },
+    {
+      "title": "Пробуждение",
+      "description": "Грохот за гранью разрывает тишину — Древний готов выйти в наш мир.",
+      "image": "/cthulhu.svg",
+      "requirement": {
+        "label": "Пробудите Древнего",
+        "type": "flag",
+        "progressKey": "awakening",
+        "target": true
+      }
+    }
+  ]
+}
