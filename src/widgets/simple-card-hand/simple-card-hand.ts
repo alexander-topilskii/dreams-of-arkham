@@ -67,9 +67,6 @@ export class SimpleCardHand {
         body.className = 'simple-card-hand__body'
         this.panel.appendChild(body)
 
-        this.prevButton = this.createNavButton('left')
-        body.appendChild(this.prevButton)
-
         this.leftDeck = this.createDeck()
         body.appendChild(this.leftDeck.container)
 
@@ -84,8 +81,11 @@ export class SimpleCardHand {
         this.rightDeck = this.createDeck()
         body.appendChild(this.rightDeck.container)
 
+        this.prevButton = this.createNavButton('left')
+        viewport.appendChild(this.prevButton)
+
         this.nextButton = this.createNavButton('right')
-        body.appendChild(this.nextButton)
+        viewport.appendChild(this.nextButton)
 
         this.cards = [...(options.cards ?? [])]
         this.render()
@@ -243,7 +243,8 @@ export class SimpleCardHand {
     private createNavButton(direction: 'left' | 'right'): HTMLButtonElement {
         const btn = document.createElement('button')
         btn.type = 'button'
-        btn.className = 'simple-card-hand__nav'
+        btn.classList.add('simple-card-hand__nav')
+        btn.classList.add(direction === 'left' ? 'simple-card-hand__nav--left' : 'simple-card-hand__nav--right')
         btn.setAttribute('aria-label', direction === 'left' ? 'Предыдущие карты' : 'Следующие карты')
         btn.innerHTML = direction === 'left' ? '&#8592;' : '&#8594;'
         return btn
@@ -382,22 +383,36 @@ export class SimpleCardHand {
             }
             .simple-card-hand__body {
                 display: flex;
-                align-items: center;
-                gap: 12px;
+                align-items: stretch;
+                gap: 16px;
             }
             .simple-card-hand__nav {
+                --nav-translate-x: 0;
                 width: 40px;
                 height: 40px;
                 border-radius: 50%;
                 border: 1px solid rgba(148, 163, 184, 0.25);
-                background: rgba(30, 41, 59, 0.85);
+                background: rgba(30, 41, 59, 0.88);
                 color: #e2e8f0;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
                 font-size: 20px;
-                transition: background 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+                transition: background 0.2s ease, transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+                position: absolute;
+                top: 50%;
+                transform: translate(var(--nav-translate-x), -50%);
+                box-shadow: 0 16px 34px rgba(15, 23, 42, 0.45);
+                z-index: 3;
+            }
+            .simple-card-hand__nav--left {
+                left: var(--card-hand-nav-offset);
+                --nav-translate-x: -50%;
+            }
+            .simple-card-hand__nav--right {
+                right: var(--card-hand-nav-offset);
+                --nav-translate-x: 50%;
             }
             .simple-card-hand__nav:disabled {
                 opacity: 0.35;
@@ -405,11 +420,22 @@ export class SimpleCardHand {
             }
             .simple-card-hand__nav:not(:disabled):hover {
                 background: rgba(59, 130, 246, 0.35);
-                transform: translateY(-2px);
+                transform: translate(var(--nav-translate-x), calc(-50% - 2px));
+                box-shadow: 0 20px 40px rgba(59, 130, 246, 0.35);
+            }
+            .simple-card-hand__nav:not(:disabled):active {
+                transform: translate(var(--nav-translate-x), calc(-50% + 1px));
+            }
+            .simple-card-hand__nav:focus-visible {
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.45);
             }
             .simple-card-hand__viewport {
+                --card-hand-nav-offset: 56px;
+                position: relative;
                 flex: 1;
                 overflow: hidden;
+                padding: 0 var(--card-hand-nav-offset);
             }
             .simple-card-hand__cards {
                 display: grid;
@@ -418,6 +444,7 @@ export class SimpleCardHand {
                 gap: 16px;
                 align-items: stretch;
                 min-height: 220px;
+                width: 100%;
             }
             .simple-card-hand__card {
                 background: linear-gradient(160deg, rgba(30, 64, 175, 0.45), rgba(15, 118, 110, 0.45));
@@ -502,7 +529,15 @@ export class SimpleCardHand {
                 color: rgba(226, 232, 240, 0.85);
                 font-family: 'Inter', system-ui, sans-serif;
             }
+            @media (max-width: 900px) {
+                .simple-card-hand__viewport {
+                    --card-hand-nav-offset: 52px;
+                }
+            }
             @media (max-width: 720px) {
+                .simple-card-hand__viewport {
+                    --card-hand-nav-offset: 48px;
+                }
                 .simple-card-hand__cards {
                     gap: 12px;
                     min-height: 200px;
@@ -512,10 +547,18 @@ export class SimpleCardHand {
                 .simple-card-hand__panel {
                     padding: 12px;
                 }
+                .simple-card-hand__viewport {
+                    --card-hand-nav-offset: 42px;
+                }
                 .simple-card-hand__nav {
                     width: 36px;
                     height: 36px;
                     font-size: 18px;
+                }
+            }
+            @media (max-width: 520px) {
+                .simple-card-hand__viewport {
+                    --card-hand-nav-offset: 36px;
                 }
             }
         `

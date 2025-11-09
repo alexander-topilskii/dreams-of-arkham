@@ -80,8 +80,6 @@ const expeditionMapConfig = mapSource as ExpeditionMapConfig;
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
     <div id="left">
-        Левая панель
-
         <div id="left-split">
             <div id="left-top">
             </div>
@@ -89,7 +87,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
     </div>
     <div id="right">
-        <div class="panel-title">Правая панель</div>
         <div id="map-panel"></div>
     </div>
   </div>
