@@ -79,8 +79,6 @@ const expeditionMapConfig = mapSource as ExpeditionMapConfig;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
-    <div id="box"></div>
-
     <div id="left">
         Левая панель
 
@@ -98,7 +96,6 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 `
 
 // -- ui components
-const draggableBox = createDraggabilly(document.getElementById('box')!)
 const movablePanels = new MovablePanels()
 
 const handRoot = document.getElementById('sample-hand')
