@@ -5,3 +5,4 @@
 [2025-11-09 18:45][FIX] Removed placeholder panel titles and aligned hand navigation arrows to integrate with card stack.
 [2025-11-10 06:23][FIX] Adjusted expedition map connection arrows to align with location card edges.
 [2025-11-10 06:47][FIX] Corrected expedition map arrow projection so connectors originate and terminate on territory cards.
+[2025-11-10 07:15][FIX] Normalized expedition map layout to keep connection arrows visible along the left screen edge.

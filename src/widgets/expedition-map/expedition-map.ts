@@ -31,8 +31,9 @@ type TerritoryView = {
 
 const HEX_WIDTH = 156;
 const HEX_HEIGHT = 180;
-const MAP_WIDTH = 1600;
-const MAP_HEIGHT = 1200;
+const MIN_MAP_WIDTH = 1600;
+const MIN_MAP_HEIGHT = 1200;
+const MAP_PADDING = 160;
 const MOVE_THRESHOLD = 6;
 
 const HEX_POLYGON_POINTS = [
@@ -78,8 +79,8 @@ const styles = `
     top: 50%;
     left: 50%;
     transform: translate3d(-50%, -50%, 0);
-    width: ${MAP_WIDTH}px;
-    height: ${MAP_HEIGHT}px;
+    width: ${MIN_MAP_WIDTH}px;
+    height: ${MIN_MAP_HEIGHT}px;
     will-change: transform;
 }
 
@@ -284,6 +285,8 @@ export class ExpeditionMap {
     private readonly connectionsLayer: SVGSVGElement;
     private readonly connectionGroup: SVGGElement;
     private readonly territories = new Map<string, TerritoryView>();
+    private mapSize = { width: MIN_MAP_WIDTH, height: MIN_MAP_HEIGHT };
+    private coordinateOffset = { x: 0, y: 0 };
     private offset = { x: 0, y: 0 };
 
     constructor(root: HTMLElement | null, config: ExpeditionMapConfig) {
@@ -304,7 +307,7 @@ export class ExpeditionMap {
 
         this.connectionsLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         this.connectionsLayer.classList.add('expedition-map__connections');
-        this.connectionsLayer.setAttribute('viewBox', `${-MAP_WIDTH / 2} ${-MAP_HEIGHT / 2} ${MAP_WIDTH} ${MAP_HEIGHT}`);
+        this.applyMapSize();
 
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         defs.innerHTML = `
@@ -335,8 +338,11 @@ export class ExpeditionMap {
 
         this.initializePan();
 
-        config.territories.forEach((territory) => {
-            this.addTerritory(cloneTerritory(territory));
+        const territories = config.territories.map((territory) => cloneTerritory(territory));
+        this.bootstrapCoordinateSpace(territories);
+
+        territories.forEach((territory) => {
+            this.addTerritory(territory);
         });
 
         this.refreshConnections();
@@ -348,6 +354,9 @@ export class ExpeditionMap {
             return;
         }
 
+        territory.position.x += this.coordinateOffset.x;
+        territory.position.y += this.coordinateOffset.y;
+
         const element = this.createTerritoryElement(territory);
         this.territoryLayer.appendChild(element);
 
@@ -358,6 +367,8 @@ export class ExpeditionMap {
         };
 
         this.territories.set(territory.id, view);
+
+        this.ensureMapFitsTerritories();
 
         territory.connections.forEach((connection) => {
             if (connection.type !== 'two-way') {
@@ -442,6 +453,112 @@ export class ExpeditionMap {
 
     private applyOffset() {
         this.content.style.transform = `translate3d(calc(-50% + ${this.offset.x}px), calc(-50% + ${this.offset.y}px), 0)`;
+    }
+
+    private applyMapSize() {
+        if (!this.content || !this.connectionsLayer) {
+            return;
+        }
+
+        this.content.style.width = `${this.mapSize.width}px`;
+        this.content.style.height = `${this.mapSize.height}px`;
+        this.connectionsLayer.setAttribute(
+            'viewBox',
+            `${-this.mapSize.width / 2} ${-this.mapSize.height / 2} ${this.mapSize.width} ${this.mapSize.height}`,
+        );
+    }
+
+    private setMapSize(width: number, height: number) {
+        const nextWidth = Math.max(width, MIN_MAP_WIDTH);
+        const nextHeight = Math.max(height, MIN_MAP_HEIGHT);
+
+        if (nextWidth === this.mapSize.width && nextHeight === this.mapSize.height) {
+            return;
+        }
+
+        this.mapSize = { width: nextWidth, height: nextHeight };
+        this.applyMapSize();
+    }
+
+    private bootstrapCoordinateSpace(territories: Territory[]) {
+        if (territories.length === 0) {
+            this.applyMapSize();
+            return;
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        territories.forEach(({ position }) => {
+            minX = Math.min(minX, position.x);
+            minY = Math.min(minY, position.y);
+            maxX = Math.max(maxX, position.x + HEX_WIDTH);
+            maxY = Math.max(maxY, position.y + HEX_HEIGHT);
+        });
+
+        const offsetX = minX < MAP_PADDING ? MAP_PADDING - minX : 0;
+        const offsetY = minY < MAP_PADDING ? MAP_PADDING - minY : 0;
+
+        this.coordinateOffset = { x: offsetX, y: offsetY };
+
+        const adjustedMaxX = maxX + offsetX;
+        const adjustedMaxY = maxY + offsetY;
+
+        this.setMapSize(adjustedMaxX + MAP_PADDING, adjustedMaxY + MAP_PADDING);
+    }
+
+    private ensureMapFitsTerritories() {
+        if (this.territories.size === 0) {
+            return;
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        this.territories.forEach((view) => {
+            minX = Math.min(minX, view.data.position.x);
+            minY = Math.min(minY, view.data.position.y);
+            maxX = Math.max(maxX, view.data.position.x + HEX_WIDTH);
+            maxY = Math.max(maxY, view.data.position.y + HEX_HEIGHT);
+        });
+
+        const shiftX = minX < MAP_PADDING ? MAP_PADDING - minX : 0;
+        const shiftY = minY < MAP_PADDING ? MAP_PADDING - minY : 0;
+
+        if (shiftX !== 0 || shiftY !== 0) {
+            this.coordinateOffset.x += shiftX;
+            this.coordinateOffset.y += shiftY;
+
+            this.territories.forEach((view) => {
+                view.data.position.x += shiftX;
+                view.data.position.y += shiftY;
+                this.positionTerritory(view);
+            });
+
+            maxX += shiftX;
+            maxY += shiftY;
+        }
+
+        this.setMapSize(maxX + MAP_PADDING, maxY + MAP_PADDING);
+    }
+
+    private getDragBounds() {
+        const minX = MAP_PADDING;
+        const minY = MAP_PADDING;
+        const maxX = Math.max(minX, this.mapSize.width - MAP_PADDING - HEX_WIDTH);
+        const maxY = Math.max(minY, this.mapSize.height - MAP_PADDING - HEX_HEIGHT);
+
+        return { minX, minY, maxX, maxY };
+    }
+
+    private clampTerritoryPosition(position: { x: number; y: number }) {
+        const bounds = this.getDragBounds();
+        position.x = Math.min(Math.max(position.x, bounds.minX), bounds.maxX);
+        position.y = Math.min(Math.max(position.y, bounds.minY), bounds.maxY);
     }
 
     private createLegend(): HTMLDivElement {
@@ -538,6 +655,7 @@ export class ExpeditionMap {
                 moved = true;
                 territory.position.x = originX + dx;
                 territory.position.y = originY + dy;
+                this.clampTerritoryPosition(territory.position);
                 const view = this.territories.get(territory.id);
                 if (view) {
                     this.positionTerritory(view);
@@ -608,6 +726,8 @@ export class ExpeditionMap {
     }
 
     private refreshConnections() {
+        this.ensureMapFitsTerritories();
+
         while (this.connectionGroup.firstChild) {
             this.connectionGroup.removeChild(this.connectionGroup.firstChild);
         }
@@ -660,8 +780,8 @@ export class ExpeditionMap {
 
     private projectPointToSvg(point: { x: number; y: number }) {
         return {
-            x: point.x - MAP_WIDTH / 2,
-            y: point.y - MAP_HEIGHT / 2,
+            x: point.x - this.mapSize.width / 2,
+            y: point.y - this.mapSize.height / 2,
         };
     }
 
