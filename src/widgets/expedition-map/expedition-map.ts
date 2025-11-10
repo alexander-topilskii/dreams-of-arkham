@@ -31,6 +31,8 @@ type TerritoryView = {
 
 const HEX_WIDTH = 156;
 const HEX_HEIGHT = 180;
+const MAP_WIDTH = 1600;
+const MAP_HEIGHT = 1200;
 const MOVE_THRESHOLD = 6;
 
 const HEX_POLYGON_POINTS = [
@@ -76,8 +78,8 @@ const styles = `
     top: 50%;
     left: 50%;
     transform: translate3d(-50%, -50%, 0);
-    width: 1600px;
-    height: 1200px;
+    width: ${MAP_WIDTH}px;
+    height: ${MAP_HEIGHT}px;
     will-change: transform;
 }
 
@@ -302,7 +304,7 @@ export class ExpeditionMap {
 
         this.connectionsLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         this.connectionsLayer.classList.add('expedition-map__connections');
-        this.connectionsLayer.setAttribute('viewBox', `${-800} ${-600} ${1600} ${1200}`);
+        this.connectionsLayer.setAttribute('viewBox', `${-MAP_WIDTH / 2} ${-MAP_HEIGHT / 2} ${MAP_WIDTH} ${MAP_HEIGHT}`);
 
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         defs.innerHTML = `
@@ -647,11 +649,20 @@ export class ExpeditionMap {
         target: { x: number; y: number },
     ): SVGLineElement {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', String(source.x));
-        line.setAttribute('y1', String(source.y));
-        line.setAttribute('x2', String(target.x));
-        line.setAttribute('y2', String(target.y));
+        const projectedSource = this.projectPointToSvg(source);
+        const projectedTarget = this.projectPointToSvg(target);
+        line.setAttribute('x1', String(projectedSource.x));
+        line.setAttribute('y1', String(projectedSource.y));
+        line.setAttribute('x2', String(projectedTarget.x));
+        line.setAttribute('y2', String(projectedTarget.y));
         return line;
+    }
+
+    private projectPointToSvg(point: { x: number; y: number }) {
+        return {
+            x: point.x - MAP_WIDTH / 2,
+            y: point.y - MAP_HEIGHT / 2,
+        };
     }
 
     private computeTerritoryCenter(position: { x: number; y: number }) {
