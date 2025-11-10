@@ -33,6 +33,15 @@ const HEX_WIDTH = 156;
 const HEX_HEIGHT = 180;
 const MOVE_THRESHOLD = 6;
 
+const HEX_POLYGON_POINTS = [
+    { x: HEX_WIDTH * 0.25, y: 0 },
+    { x: HEX_WIDTH * 0.75, y: 0 },
+    { x: HEX_WIDTH, y: HEX_HEIGHT * 0.5 },
+    { x: HEX_WIDTH * 0.75, y: HEX_HEIGHT },
+    { x: HEX_WIDTH * 0.25, y: HEX_HEIGHT },
+    { x: 0, y: HEX_HEIGHT * 0.5 },
+];
+
 const styleId = 'expedition-map-styles';
 
 const styles = `
@@ -604,15 +613,13 @@ export class ExpeditionMap {
         const bidirectional = new Set<string>();
 
         this.territories.forEach((view) => {
-            const sourceCenter = this.computeTerritoryCenter(view.data.position);
-
             view.data.connections.forEach((connection) => {
                 const target = this.territories.get(connection.targetId);
                 if (!target) {
                     return;
                 }
 
-                const targetCenter = this.computeTerritoryCenter(target.data.position);
+                const { start, end } = this.computeConnectionEndpoints(view.data.position, target.data.position);
 
                 if (connection.type === 'two-way') {
                     const key = this.getBidirectionalKey(view.data.id, target.data.id);
@@ -621,14 +628,14 @@ export class ExpeditionMap {
                     }
                     bidirectional.add(key);
 
-                    const line = this.createConnectionLine(sourceCenter, targetCenter);
+                    const line = this.createConnectionLine(start, end);
                     line.setAttribute('marker-start', 'url(#map-arrow-end)');
                     line.setAttribute('marker-end', 'url(#map-arrow-end)');
                     this.connectionGroup.appendChild(line);
                     return;
                 }
 
-                const line = this.createConnectionLine(sourceCenter, targetCenter);
+                const line = this.createConnectionLine(start, end);
                 line.setAttribute('marker-end', 'url(#map-arrow-end)');
                 this.connectionGroup.appendChild(line);
             });
@@ -652,6 +659,113 @@ export class ExpeditionMap {
             x: position.x + HEX_WIDTH / 2,
             y: position.y + HEX_HEIGHT / 2,
         };
+    }
+
+    private computeConnectionEndpoints(
+        sourcePosition: { x: number; y: number },
+        targetPosition: { x: number; y: number },
+    ) {
+        const sourceCenter = this.computeTerritoryCenter(sourcePosition);
+        const targetCenter = this.computeTerritoryCenter(targetPosition);
+
+        const direction = {
+            x: targetCenter.x - sourceCenter.x,
+            y: targetCenter.y - sourceCenter.y,
+        };
+
+        if (direction.x === 0 && direction.y === 0) {
+            return { start: sourceCenter, end: targetCenter };
+        }
+
+        const start =
+            this.findRayPolygonIntersection(sourceCenter, direction, this.computeTerritoryPolygon(sourcePosition)) ||
+            sourceCenter;
+        const end =
+            this.findRayPolygonIntersection(targetCenter, { x: -direction.x, y: -direction.y }, this.computeTerritoryPolygon(targetPosition)) ||
+            targetCenter;
+
+        return { start, end };
+    }
+
+    private computeTerritoryPolygon(position: { x: number; y: number }) {
+        return HEX_POLYGON_POINTS.map((point) => ({
+            x: position.x + point.x,
+            y: position.y + point.y,
+        }));
+    }
+
+    private findRayPolygonIntersection(
+        origin: { x: number; y: number },
+        direction: { x: number; y: number },
+        polygon: Array<{ x: number; y: number }>,
+    ) {
+        const normalizedDirection = this.normalizeVector(direction);
+        if (!normalizedDirection) {
+            return null;
+        }
+
+        let closestDistance = Infinity;
+        let closestPoint: { x: number; y: number } | null = null;
+
+        for (let i = 0; i < polygon.length; i += 1) {
+            const current = polygon[i];
+            const next = polygon[(i + 1) % polygon.length];
+            const intersection = this.intersectRayWithSegment(origin, normalizedDirection, current, next);
+            if (!intersection) {
+                continue;
+            }
+
+            const distance = this.distanceBetweenPoints(origin, intersection);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestPoint = intersection;
+            }
+        }
+
+        return closestPoint;
+    }
+
+    private intersectRayWithSegment(
+        origin: { x: number; y: number },
+        direction: { x: number; y: number },
+        a: { x: number; y: number },
+        b: { x: number; y: number },
+    ) {
+        const segment = { x: b.x - a.x, y: b.y - a.y };
+        const v = { x: a.x - origin.x, y: a.y - origin.y };
+        const cross = direction.x * segment.y - direction.y * segment.x;
+
+        if (Math.abs(cross) < 1e-6) {
+            return null;
+        }
+
+        const t = (v.x * segment.y - v.y * segment.x) / cross;
+        const u = (v.x * direction.y - v.y * direction.x) / cross;
+
+        if (t < 0 || u < 0 || u > 1) {
+            return null;
+        }
+
+        return {
+            x: origin.x + direction.x * t,
+            y: origin.y + direction.y * t,
+        };
+    }
+
+    private normalizeVector(vector: { x: number; y: number }) {
+        const length = Math.hypot(vector.x, vector.y);
+        if (length === 0) {
+            return null;
+        }
+
+        return {
+            x: vector.x / length,
+            y: vector.y / length,
+        };
+    }
+
+    private distanceBetweenPoints(a: { x: number; y: number }, b: { x: number; y: number }) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
     }
 
     private getBidirectionalKey(a: string, b: string) {
