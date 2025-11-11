@@ -8,3 +8,4 @@
 [2025-11-10 07:15][FIX] Normalized expedition map layout to keep connection arrows visible along the left screen edge.
 [2025-11-10 08:03][ADD FEATURE] Added debug toggle between SimpleCardHand and CardHand with centered CardHand overlay.
 [2025-11-10 09:12][CHANGE] Made CardHand the default overlay, centering cards on screen without the surrounding frame.
+[2025-11-10 10:02][ADD FEATURE] Introduced a resizable middle column and vertical split for the right panel to expand layout flexibility.
