@@ -20,7 +20,7 @@ const map = new ExpeditionMap(mapRoot, mapData);
 
 ### API
 - `new ExpeditionMap(root, config)` — инициализирует карту в контейнере `root`.
-  - `config.territories` — массив территорий с полями `id`, `back`, `front`, `position`, `connections`.
+  - `config.territories` — массив территорий с полями `id`, `back`, `front`, `connections`. Поле `position` необязательно: если его не указать, карта расставит плитки автоматически по спирали вокруг центра.
 - `map.addTerritory(territory)` — добавляет новую территорию и перерисовывает связи.
 - `map.getTerritoryIds()` — возвращает массив текущих идентификаторов территорий (полезно для отладки).
 
