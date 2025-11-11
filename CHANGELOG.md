@@ -1,3 +1,4 @@
+[2025-11-10 12:30][CHANGE] Relocated expedition map to middle top panel and card hand to middle bottom for revised layout flow.
 [2025-11-10 11:45][ADD FEATURE] Replaced CardHand with advanced interactive hand widget, expanded card data, and wired debug shortcut.
 [2025-11-09 14:09][CHANGE] Reorganized widgets into dedicated folders with documentation per component.
 [2025-11-09 15:42][ADD FEATURE] Rebuilt SimpleCardHand into draggable bottom panel with paginated cards, images and responsive styling.

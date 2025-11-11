@@ -95,16 +95,16 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div id="middle">
         <div id="middle-split">
             <div id="middle-top">
+                <div id="map-panel"></div>
+            </div>
+            <div id="middle-bottom">
                 <div id="sample-hand"></div>
             </div>
-            <div id="middle-bottom"></div>
         </div>
     </div>
     <div id="right">
         <div id="right-split">
-            <div id="right-top">
-                <div id="map-panel"></div>
-            </div>
+            <div id="right-top"></div>
             <div id="right-bottom"></div>
         </div>
     </div>
