@@ -1,3 +1,4 @@
+[2025-11-11 18:15][ADD FEATURE] Внедрён drag&drop для карт перемещения: золотая стрелка при перетаскивании, проверки GameEngine по действиям/смежности и журнальные подсказки вместо выбора карт.<br>
 [2025-11-11 18:20][FIX] Ensured the event deck widget scrolls internally when its content exceeds the available space.<br>
 [2025-11-11 17:39][FIX] Realigned expedition map character tokens to the top-left and matched the text frame to the card bounds.<br>
 [2025-11-11 15:20][ADD FEATURE] Replaced expedition map hexes with rectangular cards and portrait-ready tokens.<br>

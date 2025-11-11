@@ -17,6 +17,10 @@ export type CardHandViewport = {
     end: number
 }
 
+export type CardHandDropResult =
+    | { status: 'success' }
+    | { status: 'error'; message?: string }
+
 export type CardHandOptions = {
     cards?: CardHandCard[]
     height?: number
@@ -24,13 +28,11 @@ export type CardHandOptions = {
     gap?: number
     translucent?: boolean
     enableTouchInertia?: boolean
-    onSelectionChange?: (ids: string[]) => void
     onViewportChange?: (viewport: CardHandViewport) => void
-}
-
-type SelectionMode = {
-    anchorId: string | null
-    lastRangeIds: Set<string>
+    onMoveCardDrop?: (card: CardHandCard, territoryId: string) => CardHandDropResult | Promise<CardHandDropResult>
+    onMoveCardDropFailure?: (card: CardHandCard, territoryId: string, message?: string) => void
+    onMoveCardTargetMissing?: (card: CardHandCard) => void
+    onCardConsumed?: (card: CardHandCard) => void
 }
 
 type PointerSwipeState = {
@@ -40,15 +42,20 @@ type PointerSwipeState = {
     lastTime: number
 }
 
-type DragSelectionState = {
-    pointerId: number
-    originX: number
-    originY: number
-    rect: HTMLDivElement
-}
-
-const LONG_PRESS_DURATION = 500
 const CARD_ELEVATION = 10
+
+type ActiveCardDrag = {
+    pointerId: number
+    card: InternalCard
+    wrapper: HTMLDivElement
+    startX: number
+    startY: number
+    arrow: HTMLDivElement
+    head: HTMLDivElement
+    thresholdPassed: boolean
+    originPointerX: number
+    originPointerY: number
+}
 
 export class CardHand {
     private static stylesInjected = false
@@ -60,13 +67,15 @@ export class CardHand {
     private readonly cardWidth: number
     private readonly gap: number
     private readonly enableTouchInertia: boolean
-    private readonly onSelectionChange?: (ids: string[]) => void
     private readonly onViewportChange?: (viewport: CardHandViewport) => void
+    private readonly onMoveCardDrop?: CardHandOptions['onMoveCardDrop']
+    private readonly onMoveCardDropFailure?: CardHandOptions['onMoveCardDropFailure']
+    private readonly onMoveCardTargetMissing?: CardHandOptions['onMoveCardTargetMissing']
+    private readonly onCardConsumed?: CardHandOptions['onCardConsumed']
 
     private readonly panel: HTMLDivElement
     private readonly header: HTMLDivElement
-    private readonly counterButton: HTMLButtonElement
-    private readonly clearButton: HTMLButtonElement
+    private readonly instructionsLabel: HTMLDivElement
     private readonly progressLabel: HTMLDivElement
     private readonly viewport: HTMLDivElement
     private readonly strip: HTMLDivElement
@@ -78,13 +87,9 @@ export class CardHand {
     private cards: InternalCard[] = []
     private instanceIdCounter = 0
     private readonly cardElements = new Map<string, HTMLDivElement>()
-    private readonly selectedIds = new Set<string>()
-    private selectionMode: SelectionMode = { anchorId: null, lastRangeIds: new Set() }
-    private readonly longPressTimers = new Map<number, number>()
-    private touchSelectionActive = false
     private pointerSwipe?: PointerSwipeState
-    private dragSelection?: DragSelectionState
     private scrollSnapTimer?: number
+    private activeDrag?: ActiveCardDrag
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
         this.ownsRoot = !root
@@ -94,8 +99,11 @@ export class CardHand {
         this.cardWidth = options.cardWidth ?? 168
         this.gap = options.gap ?? 14
         this.enableTouchInertia = options.enableTouchInertia ?? true
-        this.onSelectionChange = options.onSelectionChange
         this.onViewportChange = options.onViewportChange
+        this.onMoveCardDrop = options.onMoveCardDrop
+        this.onMoveCardDropFailure = options.onMoveCardDropFailure
+        this.onMoveCardTargetMissing = options.onMoveCardTargetMissing
+        this.onCardConsumed = options.onCardConsumed
 
         this.root.classList.add('card-hand-widget')
         this.root.innerHTML = ''
@@ -113,25 +121,14 @@ export class CardHand {
         this.header = document.createElement('div')
         this.header.className = 'card-hand-widget__header'
 
-        this.counterButton = document.createElement('button')
-        this.counterButton.type = 'button'
-        this.counterButton.className = 'card-hand-widget__counter'
-        this.counterButton.addEventListener('click', () => {
-            this.clearSelection()
-        })
-
-        this.clearButton = document.createElement('button')
-        this.clearButton.type = 'button'
-        this.clearButton.className = 'card-hand-widget__clear'
-        this.clearButton.textContent = 'Очистить выбор'
-        this.clearButton.addEventListener('click', () => {
-            this.clearSelection()
-        })
+        this.instructionsLabel = document.createElement('div')
+        this.instructionsLabel.className = 'card-hand-widget__instructions'
+        this.instructionsLabel.textContent = 'Перетащите карту действия на карту экспедиции'
 
         this.progressLabel = document.createElement('div')
         this.progressLabel.className = 'card-hand-widget__progress'
 
-        this.header.append(this.counterButton, this.progressLabel, this.clearButton)
+        this.header.append(this.instructionsLabel, this.progressLabel)
 
         this.panel.appendChild(this.header)
 
@@ -145,7 +142,6 @@ export class CardHand {
         this.viewport.addEventListener('pointerdown', this.handleViewportPointerDown)
         this.viewport.addEventListener('pointerup', this.handleViewportPointerUp)
         this.viewport.addEventListener('pointermove', this.handleViewportPointerMove)
-        this.viewport.addEventListener('pointerleave', this.handleViewportPointerLeave)
         this.viewport.addEventListener('focus', () => this.panel.classList.add('card-hand-widget__panel--focused'))
         this.viewport.addEventListener('blur', () => this.panel.classList.remove('card-hand-widget__panel--focused'))
 
@@ -193,7 +189,6 @@ export class CardHand {
         this.appendCard(internalCard, this.cards.length - 1, true)
         this.refreshCardIndices()
         this.updateLayout()
-        this.updateSelectionUi()
         this.updateEmptyState()
         this.scrollToCard(internalCard.instanceId)
         this.emitViewport()
@@ -207,13 +202,9 @@ export class CardHand {
         this.cards = cards.map((card) => this.prepareCard(card))
         this.cardElements.clear()
         this.strip.innerHTML = ''
-        this.selectedIds.clear()
-        this.selectionMode = { anchorId: null, lastRangeIds: new Set() }
 
         if (this.cards.length === 0) {
-            this.updateSelectionUi()
             this.updateEmptyState()
-            this.emitSelection()
             this.emitViewport()
             return
         }
@@ -221,9 +212,7 @@ export class CardHand {
         this.cards.forEach((card, index) => this.appendCard(card, index, false))
         this.refreshCardIndices()
         this.updateLayout()
-        this.updateSelectionUi()
         this.updateEmptyState()
-        this.emitSelection()
         this.emitViewport()
     }
 
@@ -252,13 +241,6 @@ export class CardHand {
         } else if (this.cards.length === 0) {
             this.updateEmptyState()
         }
-
-        if (this.selectedIds.has(id)) {
-            this.selectedIds.delete(id)
-            this.emitSelection()
-        }
-
-        this.updateSelectionUi()
     }
 
     destroy() {
@@ -268,11 +250,16 @@ export class CardHand {
         this.viewport.removeEventListener('pointerdown', this.handleViewportPointerDown)
         this.viewport.removeEventListener('pointerup', this.handleViewportPointerUp)
         this.viewport.removeEventListener('pointermove', this.handleViewportPointerMove)
-        this.viewport.removeEventListener('pointerleave', this.handleViewportPointerLeave)
 
         if (this.scrollSnapTimer) {
             window.clearTimeout(this.scrollSnapTimer)
         }
+
+        document.removeEventListener('pointermove', this.handleDocumentPointerMove)
+        document.removeEventListener('pointerup', this.handleDocumentPointerUp)
+        document.removeEventListener('pointercancel', this.handleDocumentPointerUp)
+
+        this.clearActiveDrag()
 
         if (this.ownsRoot) {
             this.root.remove()
@@ -300,10 +287,7 @@ export class CardHand {
         button.dataset.cardEffect = card.effect
         button.dataset.cardType = card.id
         button.style.height = `${Math.floor(this.cardWidth * 1.4)}px`
-        button.addEventListener('click', (event) => this.handleCardClick(card, event as MouseEvent))
         button.addEventListener('pointerdown', (event) => this.handleCardPointerDown(card, event))
-        button.addEventListener('pointerup', (event) => this.handleCardPointerUp(card, event))
-        button.addEventListener('pointercancel', (event) => this.handleCardPointerCancel(event))
 
         const art = document.createElement('div')
         art.className = 'card-hand-widget__art'
@@ -373,177 +357,231 @@ export class CardHand {
         } else if (event.key === 'ArrowLeft') {
             event.preventDefault()
             this.nudge(-1)
-        } else if (event.key === 'Enter') {
-            event.preventDefault()
-            const centered = this.getCenteredCardId()
-            if (centered) {
-                this.selectCard(centered, { replace: true })
-            }
         }
     }
-
-    private handleCardClick(card: InternalCard, event: MouseEvent) {
-        const isMac = navigator.platform.toLowerCase().includes('mac')
-        const ctrl = isMac ? event.metaKey : event.ctrlKey
-        const shift = event.shiftKey
-        this.selectCard(card.instanceId, {
-            replace: !ctrl && !shift,
-            toggle: ctrl,
-            range: shift,
-        })
-        this.anchorSelection(card.instanceId)
-    }
-
     private handleCardPointerDown(card: InternalCard, event: PointerEvent) {
-        this.anchorSelection(card.instanceId)
-
-        if (event.pointerType === 'touch') {
-            this.viewport.setPointerCapture(event.pointerId)
-            const timer = window.setTimeout(() => {
-                this.touchSelectionActive = true
-                this.selectCard(card.instanceId, { replace: true })
-            }, LONG_PRESS_DURATION)
-            this.longPressTimers.set(event.pointerId, timer)
+        if (event.pointerType === 'mouse' && event.button !== 0) {
+            return
         }
-    }
 
-    private handleCardPointerUp(card: InternalCard, event: PointerEvent) {
-        if (event.pointerType === 'touch') {
-            this.cancelLongPress(event.pointerId)
-            if (this.touchSelectionActive) {
-                this.touchSelectionActive = false
-            }
+        const button = event.currentTarget as HTMLElement | null
+        const wrapper = button?.closest('.card-hand-widget__card-wrapper') as HTMLDivElement | null
+        if (!wrapper) {
+            return
         }
-    }
 
-    private handleCardPointerCancel(event: PointerEvent) {
-        if (event.pointerType === 'touch') {
-            this.cancelLongPress(event.pointerId)
-            this.touchSelectionActive = false
+        if (card.effect !== 'move') {
+            return
         }
+
+        event.preventDefault()
+        event.stopPropagation()
+
+        if (this.activeDrag) {
+            this.cancelActiveDrag()
+        }
+
+        const rect = wrapper.getBoundingClientRect()
+        const { arrow, head } = this.createDragArrowElements()
+
+        this.activeDrag = {
+            pointerId: event.pointerId,
+            card,
+            wrapper,
+            startX: rect.left + rect.width / 2,
+            startY: rect.top + rect.height / 2,
+            arrow,
+            head,
+            thresholdPassed: false,
+            originPointerX: event.clientX,
+            originPointerY: event.clientY,
+        }
+
+        document.addEventListener('pointermove', this.handleDocumentPointerMove)
+        document.addEventListener('pointerup', this.handleDocumentPointerUp)
+        document.addEventListener('pointercancel', this.handleDocumentPointerUp)
     }
 
     private handleViewportPointerDown = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
-            this.pointerSwipe = {
-                pointerId: event.pointerId,
-                lastX: event.clientX,
-                velocity: 0,
-                lastTime: performance.now(),
-            }
-            this.viewport.setPointerCapture(event.pointerId)
+        if (event.pointerType !== 'touch') {
             return
         }
 
-        const target = event.target as HTMLElement | null
-        if (target?.closest('[data-card-button]')) {
-            return
-        }
-
-        if (event.button !== 0) {
-            return
-        }
-
-        const rect = this.viewport.getBoundingClientRect()
-        const overlay = document.createElement('div')
-        overlay.className = 'card-hand-widget__selection-rect'
-        overlay.style.left = `${event.clientX - rect.left}px`
-        overlay.style.top = `${event.clientY - rect.top}px`
-        this.viewport.appendChild(overlay)
-
-        this.dragSelection = {
+        this.pointerSwipe = {
             pointerId: event.pointerId,
-            originX: event.clientX,
-            originY: event.clientY,
-            rect: overlay,
+            lastX: event.clientX,
+            velocity: 0,
+            lastTime: performance.now(),
         }
-
         this.viewport.setPointerCapture(event.pointerId)
     }
 
     private handleViewportPointerMove = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
-            if (!this.pointerSwipe || this.pointerSwipe.pointerId !== event.pointerId) {
-                return
-            }
-
-            const dx = event.clientX - this.pointerSwipe.lastX
-            const dt = Math.max(1, performance.now() - this.pointerSwipe.lastTime)
-            const velocity = dx / dt
-            this.pointerSwipe.lastX = event.clientX
-            this.pointerSwipe.lastTime = performance.now()
-            this.pointerSwipe.velocity = velocity
-
-            this.viewport.scrollLeft -= dx
-
-            if (this.touchSelectionActive) {
-                const hovered = this.getCardIdUnderPointer(event.clientX, event.clientY)
-                if (hovered) {
-                    this.selectCard(hovered, { toggle: true })
-                }
-            }
-
-            this.emitViewport()
+        if (event.pointerType !== 'touch') {
             return
         }
 
-        if (!this.dragSelection || this.dragSelection.pointerId !== event.pointerId) {
+        if (!this.pointerSwipe || this.pointerSwipe.pointerId !== event.pointerId) {
             return
         }
 
-        const rect = this.viewport.getBoundingClientRect()
-        const x1 = this.dragSelection.originX - rect.left
-        const y1 = this.dragSelection.originY - rect.top
-        const x2 = event.clientX - rect.left
-        const y2 = event.clientY - rect.top
+        const dx = event.clientX - this.pointerSwipe.lastX
+        const dt = Math.max(1, performance.now() - this.pointerSwipe.lastTime)
+        const velocity = dx / dt
+        this.pointerSwipe.lastX = event.clientX
+        this.pointerSwipe.lastTime = performance.now()
+        this.pointerSwipe.velocity = velocity
 
-        const left = Math.min(x1, x2)
-        const top = Math.min(y1, y2)
-        const width = Math.abs(x1 - x2)
-        const height = Math.abs(y1 - y2)
-
-        this.dragSelection.rect.style.left = `${left}px`
-        this.dragSelection.rect.style.top = `${top}px`
-        this.dragSelection.rect.style.width = `${width}px`
-        this.dragSelection.rect.style.height = `${height}px`
-
-        const selected = this.hitTestCards(left + this.viewport.scrollLeft, top, width, height)
-        this.selectedIds.clear()
-        selected.forEach((id) => this.selectedIds.add(id))
-        this.emitSelection()
-        this.updateSelectionUi()
+        this.viewport.scrollLeft -= dx
+        this.emitViewport()
     }
 
     private handleViewportPointerUp = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
-            if (this.pointerSwipe && this.pointerSwipe.pointerId === event.pointerId) {
-                if (this.enableTouchInertia) {
-                    this.startInertiaAnimation(this.pointerSwipe.velocity)
-                }
-                this.pointerSwipe = undefined
-            }
-            this.cancelLongPress(event.pointerId)
-            this.touchSelectionActive = false
-            this.scheduleSnap()
+        if (event.pointerType !== 'touch') {
             return
         }
 
-        if (this.dragSelection && this.dragSelection.pointerId === event.pointerId) {
-            this.dragSelection.rect.remove()
-            this.dragSelection = undefined
-            this.scheduleSnap()
+        if (this.pointerSwipe && this.pointerSwipe.pointerId === event.pointerId) {
+            if (this.enableTouchInertia) {
+                this.startInertiaAnimation(this.pointerSwipe.velocity)
+            }
+            this.pointerSwipe = undefined
+        }
+        this.scheduleSnap()
+    }
+
+    private handleDocumentPointerMove = (event: PointerEvent) => {
+        const drag = this.activeDrag
+        if (!drag || drag.pointerId !== event.pointerId) {
+            return
+        }
+
+        const distance = Math.hypot(event.clientX - drag.originPointerX, event.clientY - drag.originPointerY)
+        if (!drag.thresholdPassed && distance > 12) {
+            drag.thresholdPassed = true
+            drag.wrapper.classList.add('card-hand-widget__card-wrapper--dragging')
+            document.body.appendChild(drag.arrow)
+            drag.arrow.classList.add('card-hand-widget__drag-arrow--visible')
+        }
+
+        if (drag.thresholdPassed) {
+            this.updateDragArrowPosition(drag, event.clientX, event.clientY)
         }
     }
 
-    private handleViewportPointerLeave = (event: PointerEvent) => {
-        if (event.pointerType === 'touch') {
+    private handleDocumentPointerUp = async (event: PointerEvent) => {
+        const drag = this.activeDrag
+        if (!drag || drag.pointerId !== event.pointerId) {
             return
         }
-        if (!this.dragSelection || this.dragSelection.pointerId !== event.pointerId) {
+
+        this.stopTrackingPointer()
+
+        const wrapper = drag.wrapper
+        const card = drag.card
+        const wasDragging = drag.thresholdPassed
+
+        this.clearActiveDrag()
+
+        if (!wasDragging) {
             return
         }
-        this.dragSelection.rect.remove()
-        this.dragSelection = undefined
+
+        const territoryElement = this.getTerritoryElementAt(event.clientX, event.clientY)
+        if (!territoryElement) {
+            this.applyCardError(wrapper)
+            this.onMoveCardTargetMissing?.(card)
+            return
+        }
+
+        const territoryId = territoryElement.dataset.territoryId?.trim()
+        if (!territoryId) {
+            this.applyCardError(wrapper)
+            this.onMoveCardDropFailure?.(card, '', 'Не удалось определить локацию')
+            return
+        }
+
+        await this.resolveMoveDrop(card, territoryId, wrapper)
+    }
+
+    private cancelActiveDrag() {
+        this.stopTrackingPointer()
+        this.clearActiveDrag()
+    }
+
+    private stopTrackingPointer() {
+        document.removeEventListener('pointermove', this.handleDocumentPointerMove)
+        document.removeEventListener('pointerup', this.handleDocumentPointerUp)
+        document.removeEventListener('pointercancel', this.handleDocumentPointerUp)
+    }
+
+    private clearActiveDrag() {
+        if (!this.activeDrag) {
+            return
+        }
+        this.activeDrag.wrapper.classList.remove('card-hand-widget__card-wrapper--dragging')
+        this.activeDrag.arrow.remove()
+        this.activeDrag = undefined
+    }
+
+    private createDragArrowElements(): { arrow: HTMLDivElement; head: HTMLDivElement } {
+        const arrow = document.createElement('div')
+        arrow.className = 'card-hand-widget__drag-arrow'
+
+        const head = document.createElement('div')
+        head.className = 'card-hand-widget__drag-arrow-head'
+        arrow.appendChild(head)
+
+        return { arrow, head }
+    }
+
+    private updateDragArrowPosition(drag: ActiveCardDrag, clientX: number, clientY: number) {
+        const dx = clientX - drag.startX
+        const dy = clientY - drag.startY
+        const distance = Math.max(0, Math.hypot(dx, dy))
+        const angle = Math.atan2(dy, dx)
+
+        drag.arrow.style.width = `${distance}px`
+        drag.arrow.style.transform = `translate(${drag.startX}px, ${drag.startY}px) rotate(${angle}rad)`
+        drag.head.style.transform = `translate(-50%, -50%) rotate(${angle}rad)`
+    }
+
+    private getTerritoryElementAt(clientX: number, clientY: number): HTMLDivElement | null {
+        const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+        return element?.closest('.map-territory') as HTMLDivElement | null
+    }
+
+    private async resolveMoveDrop(card: InternalCard, territoryId: string, wrapper: HTMLDivElement) {
+        if (!this.onMoveCardDrop) {
+            console.warn('CardHand: onMoveCardDrop handler is not provided.')
+            this.applyCardError(wrapper)
+            return
+        }
+
+        try {
+            const result = await this.onMoveCardDrop(card, territoryId)
+            if (result && result.status === 'success') {
+                this.onCardConsumed?.(card)
+                this.removeCard(card.instanceId)
+                return
+            }
+
+            const message = result?.message
+            this.onMoveCardDropFailure?.(card, territoryId, message)
+            this.applyCardError(wrapper)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : undefined
+            console.error('CardHand: failed to resolve move drop', error)
+            this.onMoveCardDropFailure?.(card, territoryId, message)
+            this.applyCardError(wrapper)
+        }
+    }
+
+    private applyCardError(wrapper: HTMLDivElement) {
+        wrapper.classList.add('card-hand-widget__card-wrapper--error')
+        window.setTimeout(() => {
+            wrapper.classList.remove('card-hand-widget__card-wrapper--error')
+        }, 360)
     }
 
     private startInertiaAnimation(initialVelocity: number) {
@@ -574,56 +612,6 @@ export class CardHand {
         requestAnimationFrame(step)
     }
 
-    private selectCard(id: string, options: { replace?: boolean; toggle?: boolean; range?: boolean }) {
-        const alreadySelected = this.selectedIds.has(id)
-
-        if (options.range && this.selectionMode.anchorId) {
-            const range = this.computeRangeIds(this.selectionMode.anchorId, id)
-            this.selectedIds.clear()
-            range.forEach((cardId) => this.selectedIds.add(cardId))
-        } else if (options.toggle) {
-            if (alreadySelected) {
-                this.selectedIds.delete(id)
-            } else {
-                this.selectedIds.add(id)
-            }
-        } else if (options.replace) {
-            this.selectedIds.clear()
-            this.selectedIds.add(id)
-        } else {
-            this.selectedIds.clear()
-            this.selectedIds.add(id)
-        }
-
-        this.updateSelectionUi()
-        this.emitSelection()
-        this.scrollToCard(id)
-    }
-
-    private anchorSelection(id: string) {
-        this.selectionMode.anchorId = id
-    }
-
-    private clearSelection() {
-        if (this.selectedIds.size === 0) {
-            return
-        }
-        this.selectedIds.clear()
-        this.updateSelectionUi()
-        this.emitSelection()
-    }
-
-    private computeRangeIds(anchorId: string, targetId: string): string[] {
-        const startIndex = this.cards.findIndex((card) => card.instanceId === anchorId)
-        const targetIndex = this.cards.findIndex((card) => card.instanceId === targetId)
-        if (startIndex === -1 || targetIndex === -1) {
-            return []
-        }
-
-        const [from, to] = startIndex < targetIndex ? [startIndex, targetIndex] : [targetIndex, startIndex]
-        return this.cards.slice(from, to + 1).map((card) => card.instanceId)
-    }
-
     private updateLayout() {
         const totalWidth = this.cards.length * (this.cardWidth + this.gap) + this.gap
         const viewportWidth = this.viewport.clientWidth
@@ -631,7 +619,6 @@ export class CardHand {
         this.strip.classList.toggle('card-hand-widget__strip--centered', shouldCenter)
         this.updateIndicators()
         this.updateEmptyState()
-        this.updateSelectionUi()
     }
 
     private updateIndicators() {
@@ -655,19 +642,6 @@ export class CardHand {
         }
     }
 
-    private updateSelectionUi() {
-        const selectedCount = this.selectedIds.size
-        const total = this.cards.length
-
-        this.counterButton.textContent = `Выбрано: ${selectedCount} из ${total}`
-        this.clearButton.style.display = selectedCount > 0 ? 'inline-flex' : 'none'
-
-        this.cardElements.forEach((element, id) => {
-            const selected = this.selectedIds.has(id)
-            element.classList.toggle('card-hand-widget__card-wrapper--selected', selected)
-        })
-    }
-
     private updateEmptyState() {
         if (this.cards.length > 0) {
             this.viewport.classList.remove('card-hand-widget__viewport--empty')
@@ -687,10 +661,6 @@ export class CardHand {
             this.viewport.innerHTML = ''
             this.viewport.appendChild(placeholder)
         }
-    }
-
-    private emitSelection() {
-        this.onSelectionChange?.(Array.from(this.selectedIds))
     }
 
     private emitViewport() {
@@ -718,18 +688,6 @@ export class CardHand {
     private getFirstVisibleIndex(): number {
         const pitch = this.cardWidth + this.gap
         return Math.max(0, Math.floor(this.viewport.scrollLeft / pitch))
-    }
-
-    private getCenteredCardId(): string | null {
-        if (this.cards.length === 0) {
-            return null
-        }
-        const pitch = this.cardWidth + this.gap
-        const scroll = this.viewport.scrollLeft
-        const center = scroll + this.viewport.clientWidth / 2
-        const index = Math.round((center - this.cardWidth / 2) / pitch)
-        const clamped = Math.max(0, Math.min(this.cards.length - 1, index))
-        return this.cards[clamped]?.instanceId ?? null
     }
 
     private nudge(direction: number) {
@@ -789,41 +747,6 @@ export class CardHand {
         return `${normalized}::${counter}::${timestamp}${randomPart}`
     }
 
-    private getCardIdUnderPointer(x: number, y: number): string | null {
-        const element = document.elementFromPoint(x, y) as HTMLElement | null
-        const wrapper = element?.closest('.card-hand-widget__card-wrapper') as HTMLDivElement | null
-        return wrapper?.dataset.id ?? null
-    }
-
-    private hitTestCards(left: number, top: number, width: number, height: number): string[] {
-        const result: string[] = []
-        const cards = Array.from(this.cardElements.values())
-        for (const card of cards) {
-            const cardLeft = card.offsetLeft
-            const cardRight = cardLeft + card.offsetWidth
-            const cardTop = card.offsetTop
-            const cardBottom = cardTop + card.offsetHeight
-            const overlaps = !(
-                left > cardRight ||
-                left + width < cardLeft ||
-                top > cardBottom ||
-                top + height < cardTop
-            )
-            if (overlaps && card.dataset.id) {
-                result.push(card.dataset.id)
-            }
-        }
-        return result
-    }
-
-    private cancelLongPress(pointerId: number) {
-        const timer = this.longPressTimers.get(pointerId)
-        if (timer) {
-            window.clearTimeout(timer)
-            this.longPressTimers.delete(pointerId)
-        }
-    }
-
     private createOverlayRoot(): HTMLElement {
         const root = document.createElement('div')
         root.className = 'card-hand-widget__overlay-root'
@@ -879,34 +802,14 @@ export class CardHand {
                 gap: 12px;
             }
 
-            .card-hand-widget__counter {
-                background: none;
-                border: none;
-                color: inherit;
-                padding: 0;
-                font-size: 14px;
-                cursor: pointer;
-                text-align: left;
-            }
-
-            .card-hand-widget__counter:hover {
-                text-decoration: underline;
-            }
-
-            .card-hand-widget__clear {
-                margin-left: auto;
-                background: rgba(59, 130, 246, 0.2);
-                border: 1px solid rgba(59, 130, 246, 0.35);
-                border-radius: 999px;
-                padding: 6px 14px;
-                color: inherit;
-                cursor: pointer;
-                font-size: 12px;
-                display: none;
-            }
-
-            .card-hand-widget__clear:hover {
-                background: rgba(59, 130, 246, 0.3);
+            .card-hand-widget__instructions {
+                font-size: 13px;
+                color: rgba(226, 232, 240, 0.72);
+                flex: 1;
+                min-width: 0;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                white-space: nowrap;
             }
 
             .card-hand-widget__progress {
@@ -1019,20 +922,48 @@ export class CardHand {
                 box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.65);
             }
 
-            .card-hand-widget__card-wrapper--selected .card-hand-widget__card {
-                transform: translateY(-8px) scale(1.1);
+            .card-hand-widget__card-wrapper--dragging .card-hand-widget__card {
+                transform: translateY(-12px) scale(1.08);
                 border-color: rgba(250, 204, 21, 0.9);
-                box-shadow: 0 30px 40px rgba(250, 204, 21, 0.35);
+                box-shadow: 0 30px 46px rgba(250, 204, 21, 0.3);
             }
 
-            .card-hand-widget__card-wrapper--selected::after {
+            .card-hand-widget__card-wrapper--dragging::after {
                 content: '';
                 position: absolute;
                 inset: -6px;
                 border-radius: 24px;
-                border: 2px solid rgba(250, 204, 21, 0.65);
+                border: 2px solid rgba(250, 204, 21, 0.6);
                 pointer-events: none;
-                box-shadow: 0 0 24px rgba(250, 204, 21, 0.35);
+                box-shadow: 0 0 32px rgba(250, 204, 21, 0.35);
+            }
+
+            .card-hand-widget__card-wrapper--error {
+                animation: card-hand-widget__shake 0.4s ease;
+            }
+
+            .card-hand-widget__card-wrapper--error .card-hand-widget__card {
+                border-color: rgba(248, 113, 113, 0.85);
+                box-shadow: 0 24px 34px rgba(248, 113, 113, 0.28);
+            }
+
+            .card-hand-widget__card-wrapper--error::after {
+                content: '';
+                position: absolute;
+                inset: -6px;
+                border-radius: 24px;
+                border: 2px solid rgba(248, 113, 113, 0.6);
+                pointer-events: none;
+                box-shadow: 0 0 26px rgba(248, 113, 113, 0.3);
+            }
+
+            @keyframes card-hand-widget__shake {
+                0% { transform: translateX(0); }
+                20% { transform: translateX(-6px); }
+                40% { transform: translateX(6px); }
+                60% { transform: translateX(-4px); }
+                80% { transform: translateX(4px); }
+                100% { transform: translateX(0); }
             }
 
             .card-hand-widget__art {
@@ -1148,11 +1079,36 @@ export class CardHand {
                 opacity: 1;
             }
 
-            .card-hand-widget__selection-rect {
-                position: absolute;
-                border: 1px dashed rgba(250, 204, 21, 0.85);
-                background: rgba(250, 204, 21, 0.18);
+            .card-hand-widget__drag-arrow {
+                position: fixed;
+                left: 0;
+                top: 0;
+                height: 4px;
+                width: 0;
+                background: linear-gradient(90deg, rgba(250, 204, 21, 0.95), rgba(250, 204, 21, 0));
+                border-radius: 999px;
                 pointer-events: none;
+                opacity: 0;
+                transform-origin: 0 50%;
+                transition: opacity 0.12s ease;
+                z-index: 3500;
+                box-shadow: 0 0 18px rgba(250, 204, 21, 0.4);
+            }
+
+            .card-hand-widget__drag-arrow--visible {
+                opacity: 1;
+            }
+
+            .card-hand-widget__drag-arrow-head {
+                position: absolute;
+                right: 0;
+                top: 50%;
+                width: 14px;
+                height: 14px;
+                border-radius: 50%;
+                background: rgba(250, 204, 21, 0.95);
+                box-shadow: 0 0 16px rgba(250, 204, 21, 0.45);
+                transform: translate(-50%, -50%);
             }
 
             @media (max-width: 768px) {

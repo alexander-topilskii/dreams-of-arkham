@@ -1,4 +1,4 @@
-import { ExpeditionMap, type ExpeditionMapConfig } from "../expedition-map/expedition-map";
+import { ExpeditionMap, type ExpeditionMapConfig, type TerritoryConfig } from "../expedition-map/expedition-map";
 
 const STYLE_ID = "game-engine-widget-styles";
 
@@ -117,10 +117,13 @@ export type GameEngineConfig = {
     player: GameEnginePlayerConfig;
     map: ExpeditionMap;
     mapConfig: ExpeditionMapConfig;
+    initialActions: number;
+    onActionsChange?: (actions: number) => void;
 };
 
 export type GameEngineState = {
     currentLocationId: string | null;
+    actionsRemaining: number;
 };
 
 export interface GameEngineContext {
@@ -133,15 +136,28 @@ export interface GameCommand {
     execute(context: GameEngineContext): void;
 }
 
+export type MoveCardDescriptor = {
+    id: string;
+    title: string;
+    cost: number;
+};
+
+export type MoveFailureReason = 'no-current-location' | 'unknown-location' | 'not-adjacent' | 'not-enough-actions';
+
+export type MoveAttemptResult =
+    | { success: true; locationId: string }
+    | { success: false; reason: MoveFailureReason; message: string };
+
 export class GameEngine {
     private readonly root: HTMLElement;
     private readonly config: GameEngineConfig;
+    private readonly territoryLookup = new Map<string, TerritoryConfig>();
 
     private readonly userLogList: HTMLUListElement;
     private readonly systemLogList: HTMLUListElement;
     private readonly stateElement: HTMLDivElement;
 
-    private state: GameEngineState = { currentLocationId: null };
+    private state: GameEngineState;
     private readonly userHistory: string[] = [];
     private readonly systemHistory: string[] = [];
     private readonly executedCommands: GameCommand[] = [];
@@ -150,6 +166,17 @@ export class GameEngine {
     constructor(root: HTMLElement | null | undefined, config: GameEngineConfig) {
         this.root = root ?? document.createElement("div");
         this.config = config;
+
+        for (const territory of config.mapConfig.territories) {
+            this.territoryLookup.set(territory.id, territory);
+        }
+
+        const initialActions = Number.isFinite(config.initialActions)
+            ? Math.max(0, Math.floor(config.initialActions))
+            : 0;
+        this.state = { currentLocationId: null, actionsRemaining: initialActions };
+
+        this.config.onActionsChange?.(this.state.actionsRemaining);
 
         ensureStylesMounted();
 
@@ -216,6 +243,10 @@ export class GameEngine {
         this.render();
     }
 
+    public refresh(): void {
+        this.render();
+    }
+
     public logUserMessage(message: string): void {
         this.userHistory.push(message);
     }
@@ -226,6 +257,63 @@ export class GameEngine {
 
     public setCurrentLocation(locationId: string): void {
         this.state = { ...this.state, currentLocationId: locationId };
+    }
+
+    private updateActions(actions: number): void {
+        const normalized = Math.max(0, actions);
+        this.state = { ...this.state, actionsRemaining: normalized };
+        this.config.onActionsChange?.(this.state.actionsRemaining);
+    }
+
+    public attemptMoveWithCard(card: MoveCardDescriptor, targetLocationId: string): MoveAttemptResult {
+        const targetTerritory = this.getTerritory(targetLocationId);
+        if (!targetTerritory) {
+            const message = `Локация ${targetLocationId} не найдена на карте.`;
+            this.logSystemMessage(`move_denied:unknown_location:${targetLocationId}`);
+            this.logUserMessage(message);
+            this.render();
+            return { success: false, reason: 'unknown-location', message };
+        }
+
+        const currentLocationId = this.state.currentLocationId;
+        if (!currentLocationId) {
+            const message = `Персонаж ещё не размещён на карте. Использование «${card.title}» невозможно.`;
+            this.logUserMessage(message);
+            this.logSystemMessage(`move_denied:no_current_location:${card.id}`);
+            this.render();
+            return { success: false, reason: 'no-current-location', message };
+        }
+
+        if (!this.isAdjacent(currentLocationId, targetLocationId)) {
+            const currentTitle = this.resolveLocationTitle(currentLocationId) ?? currentLocationId;
+            const message = `${targetTerritory.front.title} слишком далеко от ${currentTitle}.`;
+            this.logUserMessage(message);
+            this.logSystemMessage(`move_denied:not_adjacent:${currentLocationId}->${targetLocationId}`);
+            this.render();
+            return { success: false, reason: 'not-adjacent', message };
+        }
+
+        if (this.state.actionsRemaining < card.cost) {
+            const message = `Недостаточно действий для «${card.title}»: требуется ${card.cost}, доступно ${this.state.actionsRemaining}.`;
+            this.logUserMessage(message);
+            this.logSystemMessage(
+                `move_denied:not_enough_actions:${card.id}:${card.cost}>${this.state.actionsRemaining}`
+            );
+            this.render();
+            return { success: false, reason: 'not-enough-actions', message };
+        }
+
+        this.updateActions(this.state.actionsRemaining - card.cost);
+        this.revealLocation(targetLocationId);
+        this.placePlayer(targetLocationId);
+        this.setCurrentLocation(targetLocationId);
+
+        const playerName = this.config.player.name;
+        this.logUserMessage(`${playerName} использует «${card.title}» и перемещается в ${targetTerritory.front.title}.`);
+        this.logSystemMessage(`move:${card.id}:${currentLocationId}->${targetLocationId}`);
+        this.render();
+
+        return { success: true, locationId: targetLocationId };
     }
 
     public revealLocation(locationId: string): void {
@@ -263,10 +351,11 @@ export class GameEngine {
             ? this.resolveLocationTitle(this.state.currentLocationId)
             : null;
 
+        const actionsText = `Действия: ${this.state.actionsRemaining}`;
         if (locationTitle) {
-            this.stateElement.textContent = `Текущая локация: ${locationTitle}`;
+            this.stateElement.textContent = `Текущая локация: ${locationTitle} · ${actionsText}`;
         } else {
-            this.stateElement.textContent = "Текущая локация: неизвестно";
+            this.stateElement.textContent = `Текущая локация: неизвестно · ${actionsText}`;
         }
 
         this.renderLog(this.userLogList, this.userHistory, "Пока ничего не произошло.");
@@ -293,8 +382,23 @@ export class GameEngine {
     }
 
     private resolveLocationTitle(id: string): string | null {
-        const territory = this.config.mapConfig.territories.find((entry) => entry.id === id);
+        const territory = this.getTerritory(id);
         return territory ? territory.front.title : null;
+    }
+
+    private getTerritory(id: string): TerritoryConfig | undefined {
+        return this.territoryLookup.get(id);
+    }
+
+    private isAdjacent(fromId: string, toId: string): boolean {
+        if (fromId === toId) {
+            return false;
+        }
+        const territory = this.getTerritory(fromId);
+        if (!territory) {
+            return false;
+        }
+        return territory.connections.some((connection) => connection.targetId === toId);
     }
 }
 
