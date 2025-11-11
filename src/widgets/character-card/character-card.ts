@@ -143,7 +143,7 @@ export class CharacterCard {
 
     private applyState(state: CharacterCardState): void {
         if (state.portraitUrl) {
-            this.portrait.src = state.portraitUrl
+            this.portrait.src = this.resolveAssetUrl(state.portraitUrl)
             this.portrait.classList.remove('character-card__portrait--placeholder')
         } else {
             this.portrait.removeAttribute('src')
@@ -457,5 +457,18 @@ export class CharacterCard {
 
         document.head.appendChild(style)
         this.stylesInjected = true
+    }
+
+    private resolveAssetUrl(rawUrl: string): string {
+        const absolutePattern = /^(?:[a-z]+:)?\/\//i
+        if (absolutePattern.test(rawUrl) || rawUrl.startsWith('data:')) {
+            return rawUrl
+        }
+
+        const base = import.meta.env.BASE_URL ?? '/'
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`
+        const normalizedPath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl
+
+        return `${normalizedBase}${normalizedPath}`
     }
 }
