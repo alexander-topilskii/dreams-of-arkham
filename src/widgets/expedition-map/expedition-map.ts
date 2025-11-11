@@ -1197,6 +1197,7 @@ export class ExpeditionMap {
     private createTerritoryElement(territory: Territory): TerritoryElement {
         const wrapper = document.createElement('div') as TerritoryElement;
         wrapper.className = 'map-territory';
+        wrapper.dataset.territoryId = territory.id;
         wrapper.dataset.state = 'back';
         wrapper.style.setProperty('--x', `${territory.position.x * this.scale}px`);
         wrapper.style.setProperty('--y', `${territory.position.y * this.scale}px`);
