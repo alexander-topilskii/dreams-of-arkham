@@ -161,8 +161,8 @@ const styles = `
     inset: 0;
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    align-items: stretch;
+    align-items: center;
+    justify-content: center;
     padding: clamp(12px, 16px * var(--map-scale), 28px);
     border-radius: 0;
     clip-path: inherit;
@@ -226,7 +226,37 @@ const styles = `
     display: flex;
     flex-direction: column;
     gap: clamp(4px, 6px * var(--map-scale), 12px);
-    margin-top: auto;
+    align-items: stretch;
+}
+
+.map-territory__text-frame {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100% - clamp(48px, 56px * var(--map-scale), 92px));
+    max-width: 100%;
+    max-height: calc(100% - clamp(72px, 84px * var(--map-scale), 128px));
+    padding: clamp(10px, 12px * var(--map-scale), 18px);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    overflow: hidden;
+}
+
+.map-territory__text-frame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: clamp(12px, 14px * var(--map-scale), 20px);
+    border: 1px solid transparent;
+    pointer-events: none;
+}
+
+.map-territory__text-frame > * {
+    position: relative;
+    z-index: 1;
 }
 
 .map-territory__title {
@@ -234,6 +264,7 @@ const styles = `
     font-weight: 700;
     text-transform: none;
     margin: 0;
+    text-align: center;
     display: -webkit-box;
     -webkit-line-clamp: var(--title-lines, 2);
     -webkit-box-orient: vertical;
@@ -246,6 +277,7 @@ const styles = `
     line-height: 1.4;
     opacity: 0.85;
     margin: 0;
+    text-align: center;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: var(--description-lines, 3);
@@ -967,6 +999,9 @@ export class ExpeditionMap {
         overlay.className = 'map-territory__overlay';
         frontFace.appendChild(overlay);
 
+        const textFrame = document.createElement('div');
+        textFrame.className = 'map-territory__text-frame';
+
         const frontContent = document.createElement('div');
         frontContent.className = 'map-territory__front-content';
 
@@ -979,7 +1014,8 @@ export class ExpeditionMap {
         description.textContent = territory.front.description;
 
         frontContent.append(title, description);
-        frontFace.appendChild(frontContent);
+        textFrame.appendChild(frontContent);
+        frontFace.appendChild(textFrame);
 
         inner.append(backFace, frontFace);
         wrapper.appendChild(inner);
@@ -1130,7 +1166,7 @@ export class ExpeditionMap {
                     return;
                 }
 
-                const { start, end } = this.computeConnectionEndpoints(view.data.position, target.data.position);
+                const { start, end } = this.computeConnectionEndpoints(view, target);
 
                 if (connection.type === 'two-way') {
                     const key = this.getBidirectionalKey(view.data.id, target.data.id);
@@ -1158,8 +1194,8 @@ export class ExpeditionMap {
         target: { x: number; y: number },
     ): SVGLineElement {
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        const projectedSource = this.projectPointToSvg(source);
-        const projectedTarget = this.projectPointToSvg(target);
+        const projectedSource = this.projectDomPointToSvg(source);
+        const projectedTarget = this.projectDomPointToSvg(target);
         line.setAttribute('x1', String(projectedSource.x));
         line.setAttribute('y1', String(projectedSource.y));
         line.setAttribute('x2', String(projectedTarget.x));
@@ -1167,57 +1203,61 @@ export class ExpeditionMap {
         return line;
     }
 
-    private projectPointToSvg(point: { x: number; y: number }) {
-        const scaled = this.scalePoint(point);
+    private projectDomPointToSvg(point: { x: number; y: number }) {
         const width = this.mapSize.width * this.scale;
         const height = this.mapSize.height * this.scale;
 
         return {
-            x: scaled.x - width / 2,
-            y: scaled.y - height / 2,
+            x: point.x - width / 2,
+            y: point.y - height / 2,
         };
     }
 
-    private computeTerritoryCenter(position: { x: number; y: number }) {
-        const scaled = this.scalePoint(position);
-        return {
-            x: scaled.x + this.getScaledHexWidth() / 2,
-            y: scaled.y + this.getScaledHexHeight() / 2,
+    private getTerritoryGeometry(view: TerritoryView) {
+        const contentRect = this.content.getBoundingClientRect();
+        const rect = view.element.getBoundingClientRect();
+
+        const relative = {
+            x: rect.left - contentRect.left,
+            y: rect.top - contentRect.top,
+            width: rect.width,
+            height: rect.height,
         };
+
+        const polygon = HEX_POLYGON_POINTS.map((point) => ({
+            x: relative.x + (point.x / HEX_WIDTH) * relative.width,
+            y: relative.y + (point.y / HEX_HEIGHT) * relative.height,
+        }));
+
+        const center = {
+            x: relative.x + relative.width / 2,
+            y: relative.y + relative.height / 2,
+        };
+
+        return { center, polygon };
     }
 
-    private computeConnectionEndpoints(
-        sourcePosition: { x: number; y: number },
-        targetPosition: { x: number; y: number },
-    ) {
-        const sourceCenter = this.computeTerritoryCenter(sourcePosition);
-        const targetCenter = this.computeTerritoryCenter(targetPosition);
+    private computeConnectionEndpoints(source: TerritoryView, target: TerritoryView) {
+        const sourceGeometry = this.getTerritoryGeometry(source);
+        const targetGeometry = this.getTerritoryGeometry(target);
 
         const direction = {
-            x: targetCenter.x - sourceCenter.x,
-            y: targetCenter.y - sourceCenter.y,
+            x: targetGeometry.center.x - sourceGeometry.center.x,
+            y: targetGeometry.center.y - sourceGeometry.center.y,
         };
 
         if (direction.x === 0 && direction.y === 0) {
-            return { start: sourceCenter, end: targetCenter };
+            return { start: sourceGeometry.center, end: targetGeometry.center };
         }
 
         const start =
-            this.findRayPolygonIntersection(sourceCenter, direction, this.computeTerritoryPolygon(sourcePosition)) ||
-            sourceCenter;
+            this.findRayPolygonIntersection(sourceGeometry.center, direction, sourceGeometry.polygon) ||
+            sourceGeometry.center;
         const end =
-            this.findRayPolygonIntersection(targetCenter, { x: -direction.x, y: -direction.y }, this.computeTerritoryPolygon(targetPosition)) ||
-            targetCenter;
+            this.findRayPolygonIntersection(targetGeometry.center, { x: -direction.x, y: -direction.y }, targetGeometry.polygon) ||
+            targetGeometry.center;
 
         return { start, end };
-    }
-
-    private computeTerritoryPolygon(position: { x: number; y: number }) {
-        const scaled = this.scalePoint(position);
-        return HEX_POLYGON_POINTS.map((point) => ({
-            x: scaled.x + point.x * this.scale,
-            y: scaled.y + point.y * this.scale,
-        }));
     }
 
     private findRayPolygonIntersection(
@@ -1288,14 +1328,6 @@ export class ExpeditionMap {
             x: point.x * this.scale,
             y: point.y * this.scale,
         };
-    }
-
-    private getScaledHexWidth() {
-        return HEX_WIDTH * this.scale;
-    }
-
-    private getScaledHexHeight() {
-        return HEX_HEIGHT * this.scale;
     }
 
     private intersectRayWithSegment(
