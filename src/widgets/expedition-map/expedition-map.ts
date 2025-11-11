@@ -170,13 +170,15 @@ const styles = `
 .map-territory__characters {
     position: absolute;
     top: calc(-16px * var(--map-scale));
-    right: calc(-16px * var(--map-scale));
+    left: calc(-16px * var(--map-scale));
     display: flex;
     flex-wrap: wrap;
     gap: clamp(6px, 8px * var(--map-scale), 14px);
-    justify-content: flex-end;
+    justify-content: flex-start;
+    align-content: flex-start;
     pointer-events: none;
-    max-width: calc(100% + 64px * var(--map-scale));
+    width: calc(100% + 32px * var(--map-scale));
+    max-width: calc(100% + 32px * var(--map-scale));
     z-index: 2;
 }
 
@@ -317,16 +319,11 @@ const styles = `
 
 .map-territory__text-frame {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100% - clamp(48px, 56px * var(--map-scale), 92px));
-    max-width: 100%;
-    max-height: calc(100% - clamp(72px, 84px * var(--map-scale), 128px));
-    padding: clamp(10px, 12px * var(--map-scale), 18px);
+    inset: 0;
+    padding: clamp(16px, 18px * var(--map-scale), 28px);
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: stretch;
     overflow: hidden;
 }
