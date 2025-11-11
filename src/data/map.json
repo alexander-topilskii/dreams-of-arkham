@@ -21,7 +21,7 @@
         "title": "Улица"
       },
       "front": {
-        "title": "Первая улица",
+        "title": "Вторая улица",
         "description": "Торговцы и странники собираются на этой улице. Здесь всегда шумно, и легко потеряться в толпе.",
         "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><radialGradient id='g' cx='50%' cy='40%' r='70%'><stop offset='0%' stop-color='%23facc15'/><stop offset='100%' stop-color='%237c2d12'/></radialGradient></defs><rect width='320' height='320' fill='url(%23g)'/><circle cx='160' cy='140' r='60' fill='rgba(15,23,42,0.35)'/><rect x='148' y='90' width='24' height='140' rx='6' fill='rgba(248,250,252,0.55)'/></svg>"
       },
@@ -36,8 +36,8 @@
         "title": "Улица"
       },
       "front": {
-        "title": "Первая улица",
-        "description": "Торговцы и странники собираются на этой улице. Здесь всегда шумно, и легко потеряться в толпе.",
+        "title": "Третья улица",
+        "description": "Люди избегают эту улицу",
         "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><radialGradient id='g' cx='50%' cy='40%' r='70%'><stop offset='0%' stop-color='%23facc15'/><stop offset='100%' stop-color='%237c2d12'/></radialGradient></defs><rect width='320' height='320' fill='url(%23g)'/><circle cx='160' cy='140' r='60' fill='rgba(15,23,42,0.35)'/><rect x='148' y='90' width='24' height='140' rx='6' fill='rgba(248,250,252,0.55)'/></svg>"
       },
       "connections": [
@@ -52,7 +52,7 @@
       },
       "front": {
         "title": "Четвертая улица",
-        "description": "Торговцы и странники собираются на этой улице. Здесь всегда шумно, и легко потеряться в толпе.",
+        "description": "Мрачный переулок от которого веет холодом",
         "image": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320' viewBox='0 0 320 320'><defs><radialGradient id='g' cx='50%' cy='40%' r='70%'><stop offset='0%' stop-color='%23facc15'/><stop offset='100%' stop-color='%237c2d12'/></radialGradient></defs><rect width='320' height='320' fill='url(%23g)'/><circle cx='160' cy='140' r='60' fill='rgba(15,23,42,0.35)'/><rect x='148' y='90' width='24' height='140' rx='6' fill='rgba(248,250,252,0.55)'/></svg>"
       },
       "connections": [
