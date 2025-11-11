@@ -1,3 +1,4 @@
+[2025-11-11 13:45][ADD FEATURE] Persisted workspace panel splitter sizes in cookies to restore layout between visits.<br>
 [2025-11-11 12:51][ADD FEATURE] Added investigator character card widget to the left panel.<br>
 [2025-11-10 15:05][CHANGE] Removed SimpleCardHand widget and debug toggle to focus on the advanced CardHand interface.<br>
 [2025-11-10 14:30][CHANGE] Moved debug control panel to the right bottom workspace quadrant for quicker access near event tools.<br>
