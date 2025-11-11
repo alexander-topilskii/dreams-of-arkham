@@ -782,6 +782,22 @@ export class ExpeditionMap {
         }
     }
 
+    public revealTerritory(territoryId: string): void {
+        const view = this.territories.get(territoryId);
+
+        if (!view) {
+            console.warn(`ExpeditionMap: territory with id "${territoryId}" was not found.`);
+            return;
+        }
+
+        if (view.isFlipped) {
+            return;
+        }
+
+        view.isFlipped = true;
+        view.element.dataset.state = 'front';
+    }
+
     public removeCharacter(characterId: string): void {
         const view = this.characters.get(characterId);
         if (!view) {
