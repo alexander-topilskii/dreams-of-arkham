@@ -1,3 +1,4 @@
+[2025-11-11 14:02][FIX] Centered expedition map text within an invisible frame and synchronized arrows with zoomed hexes.<br>
 [2025-11-11 16:15][CHANGE] Switched hand cards to cost/move schema, hid effects in UI, and generated unique instance IDs.<br>
 [2025-11-11 14:55][ADD FEATURE] Added wheel zoom with control panel, evenly distributed auto layout, and responsive hex cards on the expedition map.<br>
 [2025-11-11 13:31][CHANGE] Enabled automatic expedition map layout so territory positions are optional in data sources.<br>
