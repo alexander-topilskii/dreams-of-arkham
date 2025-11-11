@@ -85,6 +85,7 @@ export class DefaultCardRenderer implements CardRenderer {
 
 export class CardHand {
     private readonly root: HTMLElement
+    private readonly frame: HTMLDivElement
     private readonly stackHost: HTMLDivElement
     private readonly cardWidth: number
     private readonly cardHeight: number
@@ -95,6 +96,7 @@ export class CardHand {
     private readonly onCardSelected: (card: CardSelectionInfo) => void
     private resizeObserver?: ResizeObserver
     private lockedRecord?: CardRecord
+    private readonly ownsRoot: boolean
     private dragState?: {
         pointerId: number
         record: CardRecord
@@ -137,7 +139,8 @@ export class CardHand {
     }
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
-        this.root = root ?? document.body
+        this.ownsRoot = !root
+        this.root = root ?? this.createOverlayRoot()
         this.cardWidth = options.cardWidth ?? DEFAULT_CARD_WIDTH
         this.cardHeight = options.cardHeight ?? DEFAULT_CARD_HEIGHT
         this.gap = options.gap ?? DEFAULT_CARD_GAP
@@ -151,13 +154,19 @@ export class CardHand {
         this.root.classList.add('card-hand')
         this.root.innerHTML = ''
         this.applyRootStyles()
-        this.root.addEventListener('pointerdown', this.handleRootPointerDown)
+
+        this.frame = document.createElement('div')
+        this.frame.className = 'card-hand__frame'
+        this.applyFrameStyles(this.frame)
+        this.root.appendChild(this.frame)
+
+        this.frame.addEventListener('pointerdown', this.handleRootPointerDown)
         document.addEventListener('pointerdown', this.handleDocumentPointerDown, true)
 
         this.stackHost = document.createElement('div')
         this.stackHost.className = 'card-hand__stack'
         this.applyStackStyles(this.stackHost)
-        this.root.appendChild(this.stackHost)
+        this.frame.appendChild(this.stackHost)
 
         const initialCards = options.cards ?? []
         initialCards.forEach((card) => this.addCard(card))
@@ -197,25 +206,57 @@ export class CardHand {
     destroy() {
         this.resizeObserver?.disconnect()
         window.removeEventListener('resize', this.handleResize)
-        this.root.removeEventListener('pointerdown', this.handleRootPointerDown)
+        this.frame.removeEventListener('pointerdown', this.handleRootPointerDown)
         document.removeEventListener('pointerdown', this.handleDocumentPointerDown, true)
         this.clearLockedCard()
         this.cardRecords.length = 0
         this.cards.length = 0
         this.stackHost.innerHTML = ''
+        if (this.ownsRoot) {
+            this.root.remove()
+        } else {
+            this.root.innerHTML = ''
+        }
     }
 
     private applyRootStyles() {
-        this.root.style.position = 'relative'
-        this.root.style.width = '100%'
-        this.root.style.height = '100%'
+        this.root.style.position = 'fixed'
+        this.root.style.left = '0'
+        this.root.style.right = '0'
+        this.root.style.bottom = '24px'
+        this.root.style.display = 'flex'
+        this.root.style.justifyContent = 'center'
+        this.root.style.pointerEvents = 'none'
+        this.root.style.padding = '0 16px'
+        this.root.style.boxSizing = 'border-box'
+        this.root.style.zIndex = '2000'
         this.root.style.overflow = 'visible'
+    }
+
+    private applyFrameStyles(frame: HTMLDivElement) {
+        frame.style.position = 'relative'
+        frame.style.width = '100%'
+        frame.style.maxWidth = '960px'
+        frame.style.pointerEvents = 'auto'
+        frame.style.background = 'rgba(15, 23, 42, 0.92)'
+        frame.style.backdropFilter = 'blur(14px)'
+        frame.style.borderRadius = '20px'
+        frame.style.border = '1px solid rgba(148, 163, 184, 0.25)'
+        frame.style.boxShadow = '0 20px 60px rgba(15, 23, 42, 0.55)'
+        frame.style.boxSizing = 'border-box'
+        frame.style.padding = '32px 24px 28px'
+        frame.style.display = 'flex'
+        frame.style.justifyContent = 'center'
+        frame.style.alignItems = 'flex-end'
+        frame.style.overflow = 'visible'
     }
 
     private applyStackStyles(stack: HTMLDivElement) {
         stack.style.position = 'relative'
         stack.style.width = '100%'
         stack.style.height = '100%'
+        stack.style.boxSizing = 'border-box'
+        stack.style.pointerEvents = 'auto'
     }
 
     private createCardElement(content: string): CardRecord {
@@ -475,13 +516,16 @@ export class CardHand {
 
         this.stackHost.style.height = `${this.cardHeight + RAISE_TRANSLATE_Y}px`
 
+        const totalWidth = step * (count - 1) + this.cardWidth
+        const offset = Math.max(0, (availableWidth - totalWidth) / 2)
+
         this.cardRecords.forEach((record, index) => {
             if (record.slot.dataset.state === 'dragging') {
                 record.slot.style.zIndex = '10000'
                 return
             }
 
-            const left = Math.max(0, step * index)
+            const left = Math.max(0, offset + step * index)
             record.slot.style.left = `${left}px`
 
             const baseZ = 100 + index
@@ -549,5 +593,12 @@ export class CardHand {
             card.style.transform = 'translateY(0) scale(1)'
             card.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.35)'
         }
+    }
+
+    private createOverlayRoot(): HTMLElement {
+        const overlay = document.createElement('div')
+        overlay.setAttribute('data-card-hand-overlay', '1')
+        document.body.appendChild(overlay)
+        return overlay
     }
 }
