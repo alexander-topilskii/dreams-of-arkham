@@ -81,6 +81,7 @@ const styles = `
     border-radius: 16px;
     overflow: hidden;
     backdrop-filter: blur(6px);
+    --map-scale: 1;
 }
 
 .expedition-map__viewport {
@@ -133,8 +134,8 @@ const styles = `
 
 .map-territory {
     position: absolute;
-    width: ${HEX_WIDTH}px;
-    height: ${HEX_HEIGHT}px;
+    width: calc(${HEX_WIDTH}px * var(--map-scale));
+    height: calc(${HEX_HEIGHT}px * var(--map-scale));
     transform: translate3d(var(--x), var(--y), 0);
     transform-origin: center;
     clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
@@ -162,8 +163,9 @@ const styles = `
     flex-direction: column;
     justify-content: flex-end;
     align-items: stretch;
-    padding: 16px;
-    border-radius: 20px;
+    padding: clamp(12px, 16px * var(--map-scale), 28px);
+    border-radius: 0;
+    clip-path: inherit;
     backface-visibility: hidden;
     transition: opacity 0.25s ease, transform 0.45s ease;
 }
@@ -212,7 +214,8 @@ const styles = `
 
 .map-territory__overlay {
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.85) 70%);
-    border-radius: 20px;
+    border-radius: 0;
+    clip-path: inherit;
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -222,7 +225,7 @@ const styles = `
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: clamp(4px, 6px * var(--map-scale), 12px);
     margin-top: auto;
 }
 
@@ -231,6 +234,11 @@ const styles = `
     font-weight: 700;
     text-transform: none;
     margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: var(--title-lines, 2);
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .map-territory__description {
@@ -238,6 +246,11 @@ const styles = `
     line-height: 1.4;
     opacity: 0.85;
     margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--description-lines, 3);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .expedition-map__legend {
@@ -278,6 +291,53 @@ const styles = `
     border-top: 2px solid rgba(248, 250, 252, 0.9);
     border-right: 2px solid rgba(248, 250, 252, 0.9);
 }
+
+.expedition-map__controls {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(6px);
+    z-index: 2;
+    pointer-events: auto;
+}
+
+.expedition-map__controls-button {
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    background: rgba(30, 41, 59, 0.85);
+    color: #e2e8f0;
+    font-family: "Rubik", "Segoe UI", system-ui, sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.expedition-map__controls-button:focus-visible {
+    outline: 2px solid rgba(148, 163, 184, 0.65);
+    outline-offset: 2px;
+}
+
+.expedition-map__controls-button:hover {
+    background: rgba(51, 65, 85, 0.95);
+    color: #f8fafc;
+}
+
+.expedition-map__controls-button:active {
+    background: rgba(15, 23, 42, 0.95);
+}
 `;
 
 function cloneTerritory<T>(value: T): T {
@@ -311,6 +371,15 @@ export class ExpeditionMap {
     private coordinateOffset = { x: 0, y: 0 };
     private offset = { x: 0, y: 0 };
     private autoLayoutCursor = 0;
+    private scale = 1;
+    private readonly minScale = 0.5;
+    private readonly maxScale = 2.8;
+    private readonly scaleStep = 0.15;
+    private zoomControls: {
+        zoomIn: HTMLButtonElement;
+        zoomOut: HTMLButtonElement;
+        reset: HTMLButtonElement;
+    } | null = null;
 
     constructor(root: HTMLElement | null, config: ExpeditionMapConfig) {
         if (!root) {
@@ -355,13 +424,18 @@ export class ExpeditionMap {
         this.content.appendChild(this.connectionsLayer);
         this.content.appendChild(this.territoryLayer);
         this.viewport.appendChild(this.content);
+        this.viewport.appendChild(this.createControls());
         this.root.appendChild(this.viewport);
         this.root.appendChild(this.createLegend());
         root.appendChild(this.root);
 
-        this.initializePan();
+        this.root.style.setProperty('--map-scale', this.scale.toString());
 
-        const territories = config.territories.map((territory) => this.createTerritoryState(territory));
+        this.initializePan();
+        this.initializeZoom();
+
+        const prepared = this.prepareInitialTerritories(config.territories);
+        const territories = prepared.map((territory) => this.createTerritoryState(territory));
         this.bootstrapCoordinateSpace(territories);
 
         territories.forEach((territory) => {
@@ -369,6 +443,8 @@ export class ExpeditionMap {
         });
 
         this.refreshConnections();
+        this.updateTerritoryScaleStyles();
+        this.updateZoomControls();
     }
 
     public addTerritory(territory: TerritoryConfig): void {
@@ -380,6 +456,71 @@ export class ExpeditionMap {
         const prepared = this.createTerritoryState(territory);
         this.mountTerritory(prepared);
         this.refreshConnections();
+        this.updateTerritoryScaleStyles();
+        this.updateZoomControls();
+    }
+
+    private prepareInitialTerritories(source: TerritoryConfig[]): TerritoryConfig[] {
+        const clones = source.map((territory) => cloneTerritory(territory) as TerritoryConfig);
+        const missing = clones.filter((territory) => !territory.position);
+
+        if (missing.length === 0) {
+            return clones;
+        }
+
+        const distributed = this.computeEvenDistribution(missing.length);
+        let cursor = 0;
+
+        clones.forEach((territory) => {
+            if (territory.position) {
+                return;
+            }
+
+            territory.position = distributed[cursor] ?? this.acquireAutoPosition();
+            cursor += 1;
+        });
+
+        this.autoLayoutCursor = distributed.length;
+
+        return clones;
+    }
+
+    private computeEvenDistribution(count: number): TerritoryPosition[] {
+        if (count === 0) {
+            return [];
+        }
+
+        const rect = this.viewport.getBoundingClientRect();
+        const viewportWidth = rect.width || this.viewport.clientWidth || this.root.clientWidth || MIN_MAP_WIDTH;
+        const viewportHeight = rect.height || this.viewport.clientHeight || this.root.clientHeight || MIN_MAP_HEIGHT;
+        const width = Math.max(viewportWidth, HEX_WIDTH + MAP_PADDING * 2);
+        const height = Math.max(viewportHeight, HEX_HEIGHT + MAP_PADDING * 2);
+
+        const columns = Math.ceil(Math.sqrt(count));
+        const rows = Math.ceil(count / columns);
+
+        const usableWidth = Math.max(width - MAP_PADDING * 2 - HEX_WIDTH, 0);
+        const usableHeight = Math.max(height - MAP_PADDING * 2 - HEX_HEIGHT, 0);
+
+        const horizontalStep = columns > 1 ? usableWidth / (columns - 1) : 0;
+        const verticalStep = rows > 1 ? usableHeight / (rows - 1) : 0;
+
+        const positions: TerritoryPosition[] = [];
+
+        for (let row = 0; row < rows; row += 1) {
+            for (let column = 0; column < columns; column += 1) {
+                if (positions.length >= count) {
+                    break;
+                }
+
+                positions.push({
+                    x: Math.round(MAP_PADDING + column * horizontalStep),
+                    y: Math.round(MAP_PADDING + row * verticalStep),
+                });
+            }
+        }
+
+        return positions;
     }
 
     private mountTerritory(territory: Territory): void {
@@ -416,6 +557,8 @@ export class ExpeditionMap {
         });
 
         this.positionTerritory(view);
+        view.element.style.setProperty('--description-lines', String(this.getDescriptionLineClamp()));
+        view.element.style.setProperty('--title-lines', String(this.getTitleLineClamp()));
     }
 
     private createTerritoryState(source: TerritoryConfig): Territory {
@@ -533,6 +676,7 @@ export class ExpeditionMap {
             };
 
             this.applyOffset();
+            this.updateZoomControls();
         });
 
         const stopPan = (event: PointerEvent) => {
@@ -549,6 +693,25 @@ export class ExpeditionMap {
         this.viewport.addEventListener('pointercancel', stopPan);
     }
 
+    private initializeZoom() {
+        this.viewport.addEventListener(
+            'wheel',
+            (event) => {
+                event.preventDefault();
+
+                const rect = this.viewport.getBoundingClientRect();
+                const anchor = {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                };
+
+                const direction = event.deltaY < 0 ? 1 : -1;
+                this.zoomByStep(direction as 1 | -1, anchor);
+            },
+            { passive: false },
+        );
+    }
+
     private applyOffset() {
         this.content.style.transform = `translate3d(calc(-50% + ${this.offset.x}px), calc(-50% + ${this.offset.y}px), 0)`;
     }
@@ -558,12 +721,67 @@ export class ExpeditionMap {
             return;
         }
 
-        this.content.style.width = `${this.mapSize.width}px`;
-        this.content.style.height = `${this.mapSize.height}px`;
+        const width = this.mapSize.width * this.scale;
+        const height = this.mapSize.height * this.scale;
+
+        this.content.style.width = `${width}px`;
+        this.content.style.height = `${height}px`;
         this.connectionsLayer.setAttribute(
             'viewBox',
-            `${-this.mapSize.width / 2} ${-this.mapSize.height / 2} ${this.mapSize.width} ${this.mapSize.height}`,
+            `${-width / 2} ${-height / 2} ${width} ${height}`,
         );
+    }
+
+    private zoomByStep(direction: 1 | -1, anchor?: { x: number; y: number }) {
+        const factor = 1 + this.scaleStep;
+        const nextScale = direction > 0 ? this.scale * factor : this.scale / factor;
+        this.setScale(nextScale, anchor);
+    }
+
+    private setScale(nextScale: number, anchor?: { x: number; y: number }, force = false) {
+        const clamped = Math.min(this.maxScale, Math.max(this.minScale, nextScale));
+
+        if (!force && Math.abs(clamped - this.scale) < 0.0001) {
+            return;
+        }
+
+        if (anchor) {
+            this.adjustOffsetForZoom(clamped, anchor);
+        }
+
+        this.scale = clamped;
+        this.root.style.setProperty('--map-scale', this.scale.toString());
+        this.applyMapSize();
+        this.applyOffset();
+        this.territories.forEach((view) => this.positionTerritory(view));
+        this.refreshConnections();
+        this.updateTerritoryScaleStyles();
+        this.updateZoomControls();
+    }
+
+    private adjustOffsetForZoom(nextScale: number, anchor: { x: number; y: number }) {
+        const rect = this.viewport.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            return;
+        }
+
+        const prevWidth = this.mapSize.width * this.scale;
+        const prevHeight = this.mapSize.height * this.scale;
+        const prevTopLeftX = rect.width / 2 - prevWidth / 2 + this.offset.x;
+        const prevTopLeftY = rect.height / 2 - prevHeight / 2 + this.offset.y;
+
+        const mapX = (anchor.x - prevTopLeftX) / this.scale;
+        const mapY = (anchor.y - prevTopLeftY) / this.scale;
+
+        const nextWidth = this.mapSize.width * nextScale;
+        const nextHeight = this.mapSize.height * nextScale;
+        const nextTopLeftX = anchor.x - mapX * nextScale;
+        const nextTopLeftY = anchor.y - mapY * nextScale;
+
+        this.offset = {
+            x: nextTopLeftX - (rect.width / 2 - nextWidth / 2),
+            y: nextTopLeftY - (rect.height / 2 - nextHeight / 2),
+        };
     }
 
     private setMapSize(width: number, height: number) {
@@ -679,12 +897,60 @@ export class ExpeditionMap {
         return legend;
     }
 
+    private createControls(): HTMLDivElement {
+        const container = document.createElement('div');
+        container.className = 'expedition-map__controls';
+
+        const zoomIn = document.createElement('button');
+        zoomIn.type = 'button';
+        zoomIn.className = 'expedition-map__controls-button';
+        zoomIn.textContent = '+';
+        zoomIn.setAttribute('aria-label', 'Приблизить карту');
+        zoomIn.addEventListener('pointerdown', (event) => event.stopPropagation());
+        zoomIn.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.zoomIn();
+        });
+
+        const zoomOut = document.createElement('button');
+        zoomOut.type = 'button';
+        zoomOut.className = 'expedition-map__controls-button';
+        zoomOut.textContent = '−';
+        zoomOut.setAttribute('aria-label', 'Отдалить карту');
+        zoomOut.addEventListener('pointerdown', (event) => event.stopPropagation());
+        zoomOut.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.zoomOut();
+        });
+
+        const reset = document.createElement('button');
+        reset.type = 'button';
+        reset.className = 'expedition-map__controls-button';
+        reset.textContent = '⟳';
+        reset.setAttribute('aria-label', 'Сбросить масштаб и позицию');
+        reset.addEventListener('pointerdown', (event) => event.stopPropagation());
+        reset.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.resetView();
+        });
+
+        container.append(zoomIn, zoomOut, reset);
+        this.zoomControls = { zoomIn, zoomOut, reset };
+
+        return container;
+    }
+
     private createTerritoryElement(territory: Territory): HTMLDivElement {
         const wrapper = document.createElement('div');
         wrapper.className = 'map-territory';
         wrapper.dataset.state = 'back';
-        wrapper.style.setProperty('--x', `${territory.position.x}px`);
-        wrapper.style.setProperty('--y', `${territory.position.y}px`);
+        wrapper.style.setProperty('--x', `${territory.position.x * this.scale}px`);
+        wrapper.style.setProperty('--y', `${territory.position.y * this.scale}px`);
+        wrapper.style.setProperty('--description-lines', String(this.getDescriptionLineClamp()));
+        wrapper.style.setProperty('--title-lines', String(this.getTitleLineClamp()));
 
         const inner = document.createElement('div');
         inner.className = 'map-territory__inner';
@@ -723,6 +989,28 @@ export class ExpeditionMap {
         return wrapper;
     }
 
+    private zoomIn(anchor?: { x: number; y: number }) {
+        this.zoomByStep(1, anchor ?? this.getViewportCenter());
+    }
+
+    private zoomOut(anchor?: { x: number; y: number }) {
+        this.zoomByStep(-1, anchor ?? this.getViewportCenter());
+    }
+
+    private resetView() {
+        this.offset = { x: 0, y: 0 };
+        this.setScale(1, undefined, true);
+        this.offset = { x: 0, y: 0 };
+        this.applyOffset();
+        this.updateZoomControls();
+    }
+
+    private getViewportCenter(): { x: number; y: number } {
+        const width = this.viewport.clientWidth || this.root.clientWidth || 0;
+        const height = this.viewport.clientHeight || this.root.clientHeight || 0;
+        return { x: width / 2, y: height / 2 };
+    }
+
     private attachTerritoryInteractions(element: HTMLDivElement, territory: Territory) {
         let isDragging = false;
         let pointerId: number | null = null;
@@ -746,8 +1034,10 @@ export class ExpeditionMap {
                 return;
             }
 
-            const dx = event.clientX - startX;
-            const dy = event.clientY - startY;
+            const dxScreen = event.clientX - startX;
+            const dyScreen = event.clientY - startY;
+            const dx = dxScreen / this.scale;
+            const dy = dyScreen / this.scale;
 
             if (isDragging) {
                 moved = true;
@@ -762,7 +1052,7 @@ export class ExpeditionMap {
                 return;
             }
 
-            if (Math.abs(dx) > MOVE_THRESHOLD || Math.abs(dy) > MOVE_THRESHOLD) {
+            if (Math.abs(dxScreen) > MOVE_THRESHOLD || Math.abs(dyScreen) > MOVE_THRESHOLD) {
                 isDragging = true;
                 moved = true;
                 element.classList.add('is-dragging');
@@ -819,8 +1109,9 @@ export class ExpeditionMap {
     }
 
     private positionTerritory(view: TerritoryView) {
-        view.element.style.setProperty('--x', `${view.data.position.x}px`);
-        view.element.style.setProperty('--y', `${view.data.position.y}px`);
+        const scaled = this.scalePoint(view.data.position);
+        view.element.style.setProperty('--x', `${scaled.x}px`);
+        view.element.style.setProperty('--y', `${scaled.y}px`);
     }
 
     private refreshConnections() {
@@ -877,16 +1168,21 @@ export class ExpeditionMap {
     }
 
     private projectPointToSvg(point: { x: number; y: number }) {
+        const scaled = this.scalePoint(point);
+        const width = this.mapSize.width * this.scale;
+        const height = this.mapSize.height * this.scale;
+
         return {
-            x: point.x - this.mapSize.width / 2,
-            y: point.y - this.mapSize.height / 2,
+            x: scaled.x - width / 2,
+            y: scaled.y - height / 2,
         };
     }
 
     private computeTerritoryCenter(position: { x: number; y: number }) {
+        const scaled = this.scalePoint(position);
         return {
-            x: position.x + HEX_WIDTH / 2,
-            y: position.y + HEX_HEIGHT / 2,
+            x: scaled.x + this.getScaledHexWidth() / 2,
+            y: scaled.y + this.getScaledHexHeight() / 2,
         };
     }
 
@@ -917,9 +1213,10 @@ export class ExpeditionMap {
     }
 
     private computeTerritoryPolygon(position: { x: number; y: number }) {
+        const scaled = this.scalePoint(position);
         return HEX_POLYGON_POINTS.map((point) => ({
-            x: position.x + point.x,
-            y: position.y + point.y,
+            x: scaled.x + point.x * this.scale,
+            y: scaled.y + point.y * this.scale,
         }));
     }
 
@@ -952,6 +1249,53 @@ export class ExpeditionMap {
         }
 
         return closestPoint;
+    }
+
+    private updateTerritoryScaleStyles() {
+        const descriptionClamp = this.getDescriptionLineClamp();
+        const titleClamp = this.getTitleLineClamp();
+
+        this.territories.forEach((view) => {
+            view.element.style.setProperty('--description-lines', String(descriptionClamp));
+            view.element.style.setProperty('--title-lines', String(titleClamp));
+        });
+    }
+
+    private updateZoomControls() {
+        if (!this.zoomControls) {
+            return;
+        }
+
+        const epsilon = 0.0001;
+        this.zoomControls.zoomIn.disabled = this.scale >= this.maxScale - epsilon;
+        this.zoomControls.zoomOut.disabled = this.scale <= this.minScale + epsilon;
+
+        const isCentered =
+            Math.abs(this.scale - 1) < epsilon && Math.abs(this.offset.x) < 0.5 && Math.abs(this.offset.y) < 0.5;
+        this.zoomControls.reset.disabled = isCentered;
+    }
+
+    private getDescriptionLineClamp(): number {
+        return Math.max(3, Math.round(3 + (this.scale - 1) * 3));
+    }
+
+    private getTitleLineClamp(): number {
+        return Math.max(2, Math.round(2 + (this.scale - 1) * 2));
+    }
+
+    private scalePoint(point: { x: number; y: number }) {
+        return {
+            x: point.x * this.scale,
+            y: point.y * this.scale,
+        };
+    }
+
+    private getScaledHexWidth() {
+        return HEX_WIDTH * this.scale;
+    }
+
+    private getScaledHexHeight() {
+        return HEX_HEIGHT * this.scale;
     }
 
     private intersectRayWithSegment(

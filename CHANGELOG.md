@@ -1,3 +1,4 @@
+[2025-11-11 14:55][ADD FEATURE] Added wheel zoom with control panel, evenly distributed auto layout, and responsive hex cards on the expedition map.<br>
 [2025-11-11 13:31][CHANGE] Enabled automatic expedition map layout so territory positions are optional in data sources.<br>
 [2025-11-11 13:45][ADD FEATURE] Persisted workspace panel splitter sizes in cookies to restore layout between visits.<br>
 [2025-11-11 13:30][FIX] Normalized character portrait URLs to respect the configured base path so the image renders inside the widget.<br>
