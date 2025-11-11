@@ -197,7 +197,7 @@ const syncTimelines = () => {
     gameLoopPanel.evaluate();
 };
 
-const debugRoot = document.getElementById('left-top');
+const debugRoot = document.getElementById('right-bottom');
 if (debugRoot) {
     const panel = createDebugPanel();
     debugRoot.appendChild(panel);
