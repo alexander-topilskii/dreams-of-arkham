@@ -184,6 +184,7 @@ const styles = `
     justify-content: flex-end;
     pointer-events: none;
     max-width: calc(100% + 48px * var(--map-scale));
+    z-index: 2;
 }
 
 .map-territory__characters:empty {
@@ -191,6 +192,7 @@ const styles = `
 }
 
 .map-territory__character {
+    position: relative;
     width: clamp(24px, 32px * var(--map-scale), 44px);
     height: clamp(24px, 32px * var(--map-scale), 44px);
     border-radius: 999px;
@@ -206,6 +208,7 @@ const styles = `
     border: 2px solid rgba(15, 23, 42, 0.6);
     padding: 0;
     pointer-events: none;
+    z-index: 1;
 }
 
 .map-territory__inner {
