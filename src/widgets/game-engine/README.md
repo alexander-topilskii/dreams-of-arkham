@@ -29,6 +29,7 @@ GameEngine
 - `EnterLocationCommand` reveals the specified territory on the Expedition Map, places the player token, updates engine state, and appends both narrative and system log entries.
 - `logUserMessage` and `logSystemMessage` append entries for later rendering; logs display from oldest to newest.
 - When no entries exist a dashed placeholder appears instead of empty list items.
+- Widget keeps a `var(--pad)` (12px fallback) top offset to mirror CardHand spacing and clamps its height to the host panel, enabling vertical scrolling whenever logs overflow.
 
 ## API (Props / Inputs / Outputs)
 | Name | Type | Default | Description |

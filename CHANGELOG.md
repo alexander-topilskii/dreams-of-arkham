@@ -1,3 +1,4 @@
+[2025-11-11 18:04][FIX] Added a matching top offset and overflow scrolling to the game engine widget for cramped layouts.<br>
 [2025-11-11 18:20][FIX] Ensured the event deck widget scrolls internally when its content exceeds the available space.<br>
 [2025-11-11 17:39][FIX] Realigned expedition map character tokens to the top-left and matched the text frame to the card bounds.<br>
 [2025-11-11 15:20][ADD FEATURE] Replaced expedition map hexes with rectangular cards and portrait-ready tokens.<br>
