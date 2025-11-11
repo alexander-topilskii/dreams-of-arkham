@@ -18,6 +18,7 @@ import {
     type TerritoryConfig,
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
+import { GameEngine } from "./widgets/game-engine/game-engine";
 
 type HandCardContent = {
     id: string;
@@ -177,6 +178,17 @@ const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
 const eventDeckRoot = document.getElementById('right-top');
 const eventDeck = new EventDeck(eventDeckRoot, eventDeckConfig);
 
+const engineRoot = document.getElementById('right-bottom');
+const gameEngine = new GameEngine(engineRoot, {
+    player: {
+        id: characterId,
+        name: initialCharacterState.name,
+    },
+    map: expeditionMap,
+    mapConfig: expeditionMapConfig,
+});
+gameEngine.initialize();
+
 // -- game loop timelines
 const victoryProgress: VictoryProgress = {
     collectedClues: 0,
@@ -211,7 +223,13 @@ const syncTimelines = () => {
     gameLoopPanel.evaluate();
 };
 
-const debugRoot = document.getElementById('right-bottom');
+let debugRoot: HTMLDivElement | null = null;
+if (engineRoot instanceof HTMLElement) {
+    debugRoot = document.createElement('div');
+    debugRoot.style.marginTop = '16px';
+    engineRoot.appendChild(debugRoot);
+}
+
 if (debugRoot) {
     const panel = createDebugPanel();
     debugRoot.appendChild(panel);
