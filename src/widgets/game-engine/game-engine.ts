@@ -20,6 +20,10 @@ function ensureStylesMounted() {
             background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
             box-shadow: 0 18px 32px rgba(15, 23, 42, 0.45);
             padding: 16px;
+            margin-top: var(--pad, 12px);
+            max-height: calc(100% - var(--pad, 12px));
+            overflow-y: auto;
+            overflow-x: hidden;
             color: #e2e8f0;
             font-family: "Rubik", "Segoe UI", system-ui, sans-serif;
         }
@@ -48,6 +52,7 @@ function ensureStylesMounted() {
             display: grid;
             gap: 16px;
             grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+            min-height: 0;
         }
 
         .game-engine-widget__column {
@@ -55,6 +60,7 @@ function ensureStylesMounted() {
             flex-direction: column;
             gap: 8px;
             min-width: 0;
+            min-height: 0;
         }
 
         .game-engine-widget__column-title {

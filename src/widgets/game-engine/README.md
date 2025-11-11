@@ -31,6 +31,9 @@ GameEngine
 - The state badge displays both the current location title and the remaining action points; `onActionsChange` notifies external UI (e.g., CharacterCard) about updates.
 - `logUserMessage` and `logSystemMessage` append entries for later rendering; logs display from oldest to newest. When no entries exist a dashed placeholder appears instead of empty list items.
 - `refresh()` forces a re-render without executing a command—useful after manual `logUserMessage` calls.
+- When no entries exist a dashed placeholder appears instead of empty list items.
+- Widget keeps a `var(--pad)` (12px fallback) top offset to mirror CardHand spacing and clamps its height to the host panel, enabling vertical scrolling whenever logs overflow.
+
 
 ## API (Props / Inputs / Outputs)
 | Name | Type | Default | Description |
