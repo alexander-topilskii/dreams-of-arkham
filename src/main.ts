@@ -101,7 +101,7 @@ const handCards: SimpleCardContent[] = [...cardsConfig.initialHand]
 
 let simpleHand: SimpleCardHand | null = null
 let cardHand: CardHand | null = null
-let activeHand: 'simple' | 'card' = 'simple'
+let activeHand: 'simple' | 'card' = 'card'
 
 const renderSimpleHand = () => {
     if (!simpleHand) {
@@ -127,7 +127,7 @@ const renderCardHand = () => {
     cardHand.setCards(cardSummaries)
 }
 
-renderSimpleHand()
+renderCardHand()
 
 const mapContainer = document.getElementById('map-panel');
 const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
@@ -263,20 +263,20 @@ if (debugRoot) {
         }
 
         handToggleButton.textContent =
-            activeHand === 'simple' ? 'Переключить на CardHand' : 'Переключить на SimpleCardHand'
+            activeHand === 'card' ? 'Переключить на SimpleCardHand' : 'Переключить на CardHand'
     }
 
     const switchHand = () => {
-        if (activeHand === 'simple') {
-            simpleHand?.destroy()
-            simpleHand = null
-            renderCardHand()
-            activeHand = 'card'
-        } else {
+        if (activeHand === 'card') {
             cardHand?.destroy()
             cardHand = null
             renderSimpleHand()
             activeHand = 'simple'
+        } else {
+            simpleHand?.destroy()
+            simpleHand = null
+            renderCardHand()
+            activeHand = 'card'
         }
 
         updateHandToggleLabel()

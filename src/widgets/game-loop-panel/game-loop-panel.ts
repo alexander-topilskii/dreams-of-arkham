@@ -164,15 +164,17 @@ function ensureStylesMounted() {
 }
 
 export class GameLoopPanel {
+    private readonly host: HTMLElement
     private container: HTMLDivElement;
     private victoryTimeline: TimelineState;
     private defeatTimeline: TimelineState;
 
-    constructor(private readonly host: HTMLElement | null, private readonly config: GameLoopConfig) {
+    constructor(host: HTMLElement | null, private readonly config: GameLoopConfig) {
         if (!host) {
             throw new Error("GameLoopPanel: host element is not available");
         }
 
+        this.host = host
         ensureStylesMounted();
 
         this.container = document.createElement("div");
@@ -191,7 +193,7 @@ export class GameLoopPanel {
     }
 
     destroy() {
-        this.host?.removeChild(this.container);
+        this.host.removeChild(this.container);
     }
 
     private createTimeline(title: string, phases: GamePhase[], kind: "victory" | "defeat"): TimelineState {
