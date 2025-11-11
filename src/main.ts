@@ -13,6 +13,7 @@ import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck
 import { CharacterCard, type CharacterCardState } from "./widgets/character-card/character-card";
 import {
     ExpeditionMap,
+    type ExpeditionMapCharacterConfig,
     type ExpeditionMapConfig,
     type TerritoryConfig,
     type TerritoryConnectionType,
@@ -144,6 +145,8 @@ const handRoot = document.getElementById('sample-hand')
 const handCards: HandCardContent[] = [...cardsConfig.initialHand]
 
 let cardHand: CardHand | null = null
+
+let debugCharacterCursor = 0
 
 const renderCardHand = () => {
     const cardSummaries: CardHandCard[] = handCards.map((card, index) => ({
@@ -297,8 +300,8 @@ if (debugRoot) {
         cardHand.addCard({
             id: card.id,
             title: card.title,
-            power: card.power,
-            health: card.health,
+            description: card.description,
+            cost: card.cost,
             effect: card.effect,
             artUrl: card.image,
         })
@@ -317,6 +320,19 @@ if (debugRoot) {
         expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
     });
     mapGroup.appendChild(addTerritoryButton);
+
+    const addCharacterButton = createDebugButton('Добавить персонажа', () => {
+        const territoryIds = expeditionMap.getTerritoryIds();
+        if (territoryIds.length === 0) {
+            console.warn('Нет доступных территорий для размещения персонажа.');
+            return;
+        }
+
+        const territoryId = territoryIds[Math.floor(Math.random() * territoryIds.length)];
+        const characterToken = createRandomMapCharacterToken();
+        expeditionMap.placeCharacter(characterToken, territoryId);
+    });
+    mapGroup.appendChild(addCharacterButton);
     panel.appendChild(mapGroup);
 
     const eventsGroup = createDebugGroup('События');
@@ -350,14 +366,14 @@ function createRandomCard(): HandCardContent {
         </svg>
     `
     const image = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
+    const effects: CardEffect[] = ['move', 'attack', 'hide', 'search']
     return {
         id,
         title: `Случайная карта ${seed}`,
         description: 'Экспериментальная карта для отладки интерфейса.',
         image,
-        power: 1 + (seed % 6),
-        health: 2 + ((seed * 3) % 6),
-        effect: 'Отладочный эффект: временно усиливает визуальный тест.',
+        cost: 1 + (seed % 4),
+        effect: effects[seed % effects.length],
     }
 }
 
@@ -402,6 +418,32 @@ function createRandomTerritory(map: ExpeditionMap): TerritoryConfig {
             image,
         },
         connections,
+    }
+}
+
+function createRandomMapCharacterToken(): ExpeditionMapCharacterConfig {
+    const seed = debugCharacterCursor
+    debugCharacterCursor += 1
+
+    const id = `debug-character-${Date.now()}-${seed}`
+    const names = [
+        'Скиталец',
+        'Авантюрист',
+        'Мистик',
+        'Рассказчик',
+        'Выживший',
+        'Страж',
+        'Искатель',
+    ]
+    const colors = ['#2563eb', '#dc2626', '#f97316', '#9333ea', '#0f766e', '#16a34a', '#c2410c']
+
+    const name = names[seed % names.length]
+    const color = colors[seed % colors.length]
+
+    return {
+        id,
+        name: `${name} ${seed + 1}`,
+        color,
     }
 }
 
