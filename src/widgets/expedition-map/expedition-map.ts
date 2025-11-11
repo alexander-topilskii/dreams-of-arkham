@@ -28,14 +28,39 @@ export type Territory = TerritoryBase & {
     position: TerritoryPosition;
 };
 
+export type ExpeditionMapCharacterConfig = {
+    id: string;
+    name?: string;
+    label?: string;
+    color?: string;
+    textColor?: string;
+};
+
+export type ExpeditionMapCharacterPlacement = {
+    territoryId: string;
+    character: ExpeditionMapCharacterConfig;
+};
+
 export type ExpeditionMapConfig = {
     territories: TerritoryConfig[];
+    characters?: ExpeditionMapCharacterPlacement[];
+};
+
+type TerritoryElement = HTMLDivElement & {
+    __charactersContainer?: HTMLDivElement;
 };
 
 type TerritoryView = {
     data: Territory;
-    element: HTMLDivElement;
+    element: TerritoryElement;
     isFlipped: boolean;
+    charactersContainer: HTMLDivElement;
+};
+
+type CharacterView = {
+    id: string;
+    element: HTMLDivElement;
+    territoryId: string;
 };
 
 const HEX_WIDTH = 156;
@@ -147,6 +172,40 @@ const styles = `
     filter: drop-shadow(0 12px 18px rgba(15, 23, 42, 0.55));
     transition: none;
     z-index: 10;
+}
+
+.map-territory__characters {
+    position: absolute;
+    top: calc(-12px * var(--map-scale));
+    right: calc(-12px * var(--map-scale));
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(4px, 6px * var(--map-scale), 10px);
+    justify-content: flex-end;
+    pointer-events: none;
+    max-width: calc(100% + 48px * var(--map-scale));
+}
+
+.map-territory__characters:empty {
+    display: none;
+}
+
+.map-territory__character {
+    width: clamp(24px, 32px * var(--map-scale), 44px);
+    height: clamp(24px, 32px * var(--map-scale), 44px);
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-family: "Rubik", "Segoe UI", system-ui, sans-serif;
+    font-weight: 600;
+    font-size: clamp(11px, 14px * var(--map-scale), 16px);
+    letter-spacing: 0.04em;
+    background: var(--character-color, rgba(30, 41, 59, 0.92));
+    color: var(--character-text-color, #f8fafc);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.35);
+    border: 2px solid rgba(15, 23, 42, 0.6);
+    padding: 0;
+    pointer-events: none;
 }
 
 .map-territory__inner {
@@ -399,6 +458,7 @@ export class ExpeditionMap {
     private readonly connectionsLayer: SVGSVGElement;
     private readonly connectionGroup: SVGGElement;
     private readonly territories = new Map<string, TerritoryView>();
+    private readonly characters = new Map<string, CharacterView>();
     private mapSize = { width: MIN_MAP_WIDTH, height: MIN_MAP_HEIGHT };
     private coordinateOffset = { x: 0, y: 0 };
     private offset = { x: 0, y: 0 };
@@ -477,6 +537,12 @@ export class ExpeditionMap {
         this.refreshConnections();
         this.updateTerritoryScaleStyles();
         this.updateZoomControls();
+
+        if (config.characters) {
+            config.characters.forEach((placement) => {
+                this.placeCharacter(placement.character, placement.territoryId);
+            });
+        }
     }
 
     public addTerritory(territory: TerritoryConfig): void {
@@ -562,10 +628,13 @@ export class ExpeditionMap {
         const element = this.createTerritoryElement(territory);
         this.territoryLayer.appendChild(element);
 
+        const charactersContainer = element.__charactersContainer ?? this.createCharacterContainer(element);
+
         const view: TerritoryView = {
             data: territory,
             element,
             isFlipped: false,
+            charactersContainer,
         };
 
         this.territories.set(territory.id, view);
@@ -665,6 +734,141 @@ export class ExpeditionMap {
 
     public getTerritoryIds(): string[] {
         return Array.from(this.territories.keys());
+    }
+
+    public placeCharacter(character: ExpeditionMapCharacterConfig, territoryId: string): void {
+        const target = this.territories.get(territoryId);
+
+        if (!target) {
+            console.warn(`ExpeditionMap: territory with id "${territoryId}" was not found.`);
+            return;
+        }
+
+        const id = character.id?.trim();
+        if (!id) {
+            console.warn('ExpeditionMap: character id must be provided.');
+            return;
+        }
+
+        const label = this.resolveCharacterLabel(character);
+        const color = character.color ?? this.getDefaultCharacterColor(id);
+        const textColor = character.textColor ?? '#f8fafc';
+        const title = character.name ?? character.label ?? id;
+
+        let view = this.characters.get(id);
+
+        if (!view) {
+            const element = this.createCharacterElement();
+            element.dataset.characterId = id;
+            view = { id, element, territoryId };
+            this.characters.set(id, view);
+        }
+
+        if (view.territoryId !== territoryId) {
+            this.detachCharacterFromTerritory(view);
+            view.territoryId = territoryId;
+        }
+
+        view.element.textContent = label;
+        view.element.style.setProperty('--character-color', color);
+        view.element.style.setProperty('--character-text-color', textColor);
+        view.element.title = title;
+
+        if (!target.charactersContainer.contains(view.element)) {
+            target.charactersContainer.appendChild(view.element);
+        }
+    }
+
+    public removeCharacter(characterId: string): void {
+        const view = this.characters.get(characterId);
+        if (!view) {
+            return;
+        }
+
+        this.detachCharacterFromTerritory(view);
+        this.characters.delete(characterId);
+    }
+
+    private detachCharacterFromTerritory(view: CharacterView) {
+        const territory = this.territories.get(view.territoryId);
+        if (!territory) {
+            return;
+        }
+
+        if (territory.charactersContainer.contains(view.element)) {
+            territory.charactersContainer.removeChild(view.element);
+        }
+    }
+
+    private createCharacterElement(): HTMLDivElement {
+        const element = document.createElement('div');
+        element.className = 'map-territory__character';
+        return element;
+    }
+
+    private resolveCharacterLabel(character: ExpeditionMapCharacterConfig): string {
+        const preferred = character.label?.trim();
+        if (preferred) {
+            return this.normalizeLabel(preferred);
+        }
+
+        if (character.name) {
+            const initials = this.extractInitials(character.name);
+            if (initials) {
+                return initials;
+            }
+        }
+
+        const idInitials = this.extractInitials(character.id);
+        return idInitials || '?';
+    }
+
+    private normalizeLabel(value: string): string {
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return '?';
+        }
+
+        return trimmed.slice(0, 3).toUpperCase();
+    }
+
+    private extractInitials(source: string): string {
+        const tokens = source
+            .split(/[^\p{L}\p{N}]+/u)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+        const chars: string[] = [];
+
+        for (let i = 0; i < tokens.length && chars.length < 2; i += 1) {
+            const token = tokens[i];
+            const [first] = Array.from(token);
+            if (first) {
+                chars.push(first.toUpperCase());
+            }
+        }
+
+        if (chars.length > 0) {
+            return chars.join('').slice(0, 3);
+        }
+
+        const fallback = Array.from(source).find((char) => /[\p{L}\p{N}]/u.test(char));
+        return fallback ? fallback.toUpperCase() : '';
+    }
+
+    private getDefaultCharacterColor(id: string): string {
+        const palette = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#0ea5e9', '#f97316', '#14b8a6'];
+        const index = Math.abs(this.hashString(id)) % palette.length;
+        return palette[index] ?? '#1e293b';
+    }
+
+    private hashString(value: string): number {
+        let hash = 0;
+        for (let i = 0; i < value.length; i += 1) {
+            hash = (hash << 5) - hash + value.charCodeAt(i);
+            hash |= 0;
+        }
+        return hash;
     }
 
     private initializePan() {
@@ -975,8 +1179,8 @@ export class ExpeditionMap {
         return container;
     }
 
-    private createTerritoryElement(territory: Territory): HTMLDivElement {
-        const wrapper = document.createElement('div');
+    private createTerritoryElement(territory: Territory): TerritoryElement {
+        const wrapper = document.createElement('div') as TerritoryElement;
         wrapper.className = 'map-territory';
         wrapper.dataset.state = 'back';
         wrapper.style.setProperty('--x', `${territory.position.x * this.scale}px`);
@@ -1020,9 +1224,26 @@ export class ExpeditionMap {
         inner.append(backFace, frontFace);
         wrapper.appendChild(inner);
 
+        const characters = document.createElement('div');
+        characters.className = 'map-territory__characters';
+        wrapper.appendChild(characters);
+        wrapper.__charactersContainer = characters;
+
         this.attachTerritoryInteractions(wrapper, territory);
 
         return wrapper;
+    }
+
+    private createCharacterContainer(element: TerritoryElement): HTMLDivElement {
+        if (element.__charactersContainer) {
+            return element.__charactersContainer;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'map-territory__characters';
+        element.appendChild(container);
+        element.__charactersContainer = container;
+        return container;
     }
 
     private zoomIn(anchor?: { x: number; y: number }) {
