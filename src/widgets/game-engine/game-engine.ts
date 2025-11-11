@@ -110,6 +110,7 @@ export type GameEnginePlayerConfig = {
     label?: string;
     color?: string;
     textColor?: string;
+    image?: string;
 };
 
 export type GameEngineConfig = {
@@ -240,6 +241,7 @@ export class GameEngine {
                 label: player.label,
                 color: player.color,
                 textColor: player.textColor,
+                image: player.image,
             },
             locationId
         );
