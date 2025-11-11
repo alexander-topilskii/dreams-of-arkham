@@ -37,6 +37,7 @@ function ensureStylesMounted() {
             width: 100%;
             height: 100%;
             min-height: 0;
+            overflow: hidden;
         }
 
         .event-deck__header {
@@ -65,6 +66,17 @@ function ensureStylesMounted() {
             gap: 16px;
             min-height: 0;
             align-items: flex-start;
+        }
+
+        .event-deck__content {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 6px;
+            scrollbar-gutter: stable;
         }
 
         .event-deck__pile {
@@ -155,6 +167,7 @@ function ensureStylesMounted() {
             flex-direction: column;
             gap: 12px;
             padding-right: 4px;
+            scrollbar-gutter: stable;
         }
 
         .event-deck__placeholder {
@@ -383,7 +396,11 @@ export class EventDeck {
 
         discardSection.append(this.discardHeader, this.discardGrid);
 
-        this.root.append(header, body, discardSection);
+        const content = document.createElement('div');
+        content.className = 'event-deck__content';
+        content.append(body, discardSection);
+
+        this.root.append(header, content);
         container.appendChild(this.root);
 
         this.updateDeckVisual();
