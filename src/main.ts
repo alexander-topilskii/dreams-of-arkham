@@ -8,6 +8,8 @@ import { createDebugButton } from "./widgets/debug/debug";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 import mapSource from "./data/map.json";
+import eventDeckSource from "./data/event-deck.json";
+import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck";
 import {
     ExpeditionMap,
     type ExpeditionMapConfig,
@@ -83,6 +85,7 @@ type BooleanControlConfig = {
 const cardsConfig = cardsSource as CardsConfig;
 const rulesConfig = rulesSource as RulesConfig;
 const expeditionMapConfig = mapSource as ExpeditionMapConfig;
+const eventDeckConfig = eventDeckSource as EventDeckConfig;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
@@ -156,6 +159,9 @@ renderCardHand()
 
 const mapContainer = document.getElementById('map-panel');
 const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
+
+const eventDeckRoot = document.getElementById('right-top');
+const eventDeck = new EventDeck(eventDeckRoot, eventDeckConfig);
 
 // -- game loop timelines
 const victoryProgress: VictoryProgress = {
@@ -342,6 +348,16 @@ if (debugRoot) {
     });
     mapGroup.appendChild(addTerritoryButton);
     panel.appendChild(mapGroup);
+
+    const eventsGroup = createDebugGroup('События');
+    const triggerEventButton = createDebugButton('Вызвать событие', () => {
+        eventDeck.triggerEvent();
+    });
+    const reshuffleEventsButton = createDebugButton('Перемешать сброс событий', () => {
+        eventDeck.reshuffleDiscard();
+    });
+    eventsGroup.append(triggerEventButton, reshuffleEventsButton);
+    panel.appendChild(eventsGroup);
 }
 
 function createRandomCard(): HandCardContent {
