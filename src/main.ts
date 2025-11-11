@@ -183,6 +183,7 @@ const gameEngine = new GameEngine(engineRoot, {
     player: {
         id: characterId,
         name: initialCharacterState.name,
+        image: portrait,
     },
     map: expeditionMap,
     mapConfig: expeditionMapConfig,
@@ -457,11 +458,26 @@ function createRandomMapCharacterToken(): ExpeditionMapCharacterConfig {
 
     const name = names[seed % names.length]
     const color = colors[seed % colors.length]
+    const accent = colors[(seed + 3) % colors.length]
+
+    const encodeColor = (value: string) => value.replace('#', '%23')
+    const baseColor = encodeColor(color)
+    const accentColor = encodeColor(accent)
+    const image =
+        "data:image/svg+xml;utf8," +
+        `<svg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'>` +
+        `<defs><linearGradient id='grad' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='${baseColor}'/><stop offset='100%' stop-color='${accentColor}'/></linearGradient></defs>` +
+        `<rect width='128' height='128' rx='28' fill='url(%23grad)'/>` +
+        `<circle cx='36' cy='34' r='18' fill='${accentColor}' opacity='0.35'/>` +
+        `<circle cx='100' cy='90' r='26' fill='${accentColor}' opacity='0.5'/>` +
+        `</svg>`
 
     return {
         id,
         name: `${name} ${seed + 1}`,
         color,
+        textColor: '#f8fafc',
+        image,
     }
 }
 

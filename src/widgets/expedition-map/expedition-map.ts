@@ -34,6 +34,7 @@ export type ExpeditionMapCharacterConfig = {
     label?: string;
     color?: string;
     textColor?: string;
+    image?: string;
 };
 
 export type ExpeditionMapCharacterPlacement = {
@@ -61,35 +62,25 @@ type CharacterView = {
     id: string;
     element: HTMLDivElement;
     territoryId: string;
+    labelElement: HTMLSpanElement;
+    portraitElement: HTMLDivElement;
 };
 
-const HEX_WIDTH = 156;
-const HEX_HEIGHT = 180;
-const HEX_RADIUS = HEX_HEIGHT / 2;
-const SQRT_3 = Math.sqrt(3);
+const TERRITORY_WIDTH = 220;
+const TERRITORY_HEIGHT = 160;
 const MIN_MAP_WIDTH = 1600;
 const MIN_MAP_HEIGHT = 1200;
 const MAP_PADDING = 160;
 const MOVE_THRESHOLD = 6;
+const AUTO_LAYOUT_COLUMNS = 4;
+const AUTO_LAYOUT_HORIZONTAL_GAP = 72;
+const AUTO_LAYOUT_VERTICAL_GAP = 56;
 
-type CubeCoordinate = { x: number; y: number; z: number };
-
-const AUTO_CUBE_DIRECTIONS: CubeCoordinate[] = [
-    { x: 1, y: -1, z: 0 },
-    { x: 1, y: 0, z: -1 },
-    { x: 0, y: 1, z: -1 },
-    { x: -1, y: 1, z: 0 },
-    { x: -1, y: 0, z: 1 },
-    { x: 0, y: -1, z: 1 },
-];
-
-const HEX_POLYGON_POINTS = [
-    { x: HEX_WIDTH * 0.25, y: 0 },
-    { x: HEX_WIDTH * 0.75, y: 0 },
-    { x: HEX_WIDTH, y: HEX_HEIGHT * 0.5 },
-    { x: HEX_WIDTH * 0.75, y: HEX_HEIGHT },
-    { x: HEX_WIDTH * 0.25, y: HEX_HEIGHT },
-    { x: 0, y: HEX_HEIGHT * 0.5 },
+const TERRITORY_POLYGON_POINTS = [
+    { x: 0, y: 0 },
+    { x: TERRITORY_WIDTH, y: 0 },
+    { x: TERRITORY_WIDTH, y: TERRITORY_HEIGHT },
+    { x: 0, y: TERRITORY_HEIGHT },
 ];
 
 const styleId = 'expedition-map-styles';
@@ -159,13 +150,15 @@ const styles = `
 
 .map-territory {
     position: absolute;
-    width: calc(${HEX_WIDTH}px * var(--map-scale));
-    height: calc(${HEX_HEIGHT}px * var(--map-scale));
+    width: calc(${TERRITORY_WIDTH}px * var(--map-scale));
+    height: calc(${TERRITORY_HEIGHT}px * var(--map-scale));
     transform: translate3d(var(--x), var(--y), 0);
     transform-origin: center;
-    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+    border-radius: clamp(16px, 18px * var(--map-scale), 26px);
+    overflow: hidden;
     transition: filter 0.2s ease;
     user-select: none;
+    box-shadow: 0 18px 28px rgba(15, 23, 42, 0.35);
 }
 
 .map-territory.is-dragging {
@@ -176,14 +169,16 @@ const styles = `
 
 .map-territory__characters {
     position: absolute;
-    top: calc(-12px * var(--map-scale));
-    right: calc(-12px * var(--map-scale));
+    top: calc(-16px * var(--map-scale));
+    left: calc(-16px * var(--map-scale));
     display: flex;
     flex-wrap: wrap;
-    gap: clamp(4px, 6px * var(--map-scale), 10px);
-    justify-content: flex-end;
+    gap: clamp(6px, 8px * var(--map-scale), 14px);
+    justify-content: flex-start;
+    align-content: flex-start;
     pointer-events: none;
-    max-width: calc(100% + 48px * var(--map-scale));
+    width: calc(100% + 32px * var(--map-scale));
+    max-width: calc(100% + 32px * var(--map-scale));
     z-index: 2;
 }
 
@@ -193,22 +188,54 @@ const styles = `
 
 .map-territory__character {
     position: relative;
-    width: clamp(24px, 32px * var(--map-scale), 44px);
-    height: clamp(24px, 32px * var(--map-scale), 44px);
-    border-radius: 999px;
-    display: grid;
-    place-items: center;
+    width: clamp(32px, 40px * var(--map-scale), 54px);
+    height: clamp(32px, 40px * var(--map-scale), 54px);
+    border-radius: clamp(12px, 14px * var(--map-scale), 20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-family: "Rubik", "Segoe UI", system-ui, sans-serif;
     font-weight: 600;
     font-size: clamp(11px, 14px * var(--map-scale), 16px);
     letter-spacing: 0.04em;
     background: var(--character-color, rgba(30, 41, 59, 0.92));
     color: var(--character-text-color, #f8fafc);
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.35);
-    border: 2px solid rgba(15, 23, 42, 0.6);
-    padding: 0;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.4);
+    border: 2px solid rgba(15, 23, 42, 0.55);
+    overflow: hidden;
     pointer-events: none;
     z-index: 1;
+}
+
+.map-territory__character-portrait {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.map-territory__character--with-image .map-territory__character-portrait {
+    opacity: 1;
+}
+
+.map-territory__character-label {
+    position: relative;
+    z-index: 1;
+    padding: 0 4px;
+    text-align: center;
+}
+
+.map-territory__character--with-image .map-territory__character-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 2px 4px;
+    font-size: clamp(9px, 11px * var(--map-scale), 12px);
+    line-height: 1.2;
+    background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.85));
 }
 
 .map-territory__inner {
@@ -226,8 +253,8 @@ const styles = `
     align-items: center;
     justify-content: center;
     padding: clamp(12px, 16px * var(--map-scale), 28px);
-    border-radius: 0;
-    clip-path: inherit;
+    border-radius: inherit;
+    overflow: hidden;
     backface-visibility: hidden;
     transition: opacity 0.25s ease, transform 0.45s ease;
 }
@@ -276,8 +303,7 @@ const styles = `
 
 .map-territory__overlay {
     background: linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.85) 70%);
-    border-radius: 0;
-    clip-path: inherit;
+    border-radius: inherit;
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -293,16 +319,11 @@ const styles = `
 
 .map-territory__text-frame {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100% - clamp(48px, 56px * var(--map-scale), 92px));
-    max-width: 100%;
-    max-height: calc(100% - clamp(72px, 84px * var(--map-scale), 128px));
-    padding: clamp(10px, 12px * var(--map-scale), 18px);
+    inset: 0;
+    padding: clamp(16px, 18px * var(--map-scale), 28px);
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
     align-items: stretch;
     overflow: hidden;
 }
@@ -594,14 +615,14 @@ export class ExpeditionMap {
         const rect = this.viewport.getBoundingClientRect();
         const viewportWidth = rect.width || this.viewport.clientWidth || this.root.clientWidth || MIN_MAP_WIDTH;
         const viewportHeight = rect.height || this.viewport.clientHeight || this.root.clientHeight || MIN_MAP_HEIGHT;
-        const width = Math.max(viewportWidth, HEX_WIDTH + MAP_PADDING * 2);
-        const height = Math.max(viewportHeight, HEX_HEIGHT + MAP_PADDING * 2);
+        const width = Math.max(viewportWidth, TERRITORY_WIDTH + MAP_PADDING * 2);
+        const height = Math.max(viewportHeight, TERRITORY_HEIGHT + MAP_PADDING * 2);
 
         const columns = Math.ceil(Math.sqrt(count));
         const rows = Math.ceil(count / columns);
 
-        const usableWidth = Math.max(width - MAP_PADDING * 2 - HEX_WIDTH, 0);
-        const usableHeight = Math.max(height - MAP_PADDING * 2 - HEX_HEIGHT, 0);
+        const usableWidth = Math.max(width - MAP_PADDING * 2 - TERRITORY_WIDTH, 0);
+        const usableHeight = Math.max(height - MAP_PADDING * 2 - TERRITORY_HEIGHT, 0);
 
         const horizontalStep = columns > 1 ? usableWidth / (columns - 1) : 0;
         const verticalStep = rows > 1 ? usableHeight / (rows - 1) : 0;
@@ -676,63 +697,19 @@ export class ExpeditionMap {
     }
 
     private acquireAutoPosition(): TerritoryPosition {
-        const axial = this.getAutoAxial(this.autoLayoutCursor);
+        const position = this.getAutoGridPosition(this.autoLayoutCursor);
         this.autoLayoutCursor += 1;
-        return this.axialToPosition(axial.q, axial.r);
+        return position;
     }
 
-    private getAutoAxial(index: number): { q: number; r: number } {
-        if (index === 0) {
-            return { q: 0, r: 0 };
-        }
+    private getAutoGridPosition(index: number): TerritoryPosition {
+        const columns = Math.max(1, AUTO_LAYOUT_COLUMNS);
+        const column = index % columns;
+        const row = Math.floor(index / columns);
+        const x = MAP_PADDING + column * (TERRITORY_WIDTH + AUTO_LAYOUT_HORIZONTAL_GAP);
+        const y = MAP_PADDING + row * (TERRITORY_HEIGHT + AUTO_LAYOUT_VERTICAL_GAP);
 
-        let radius = 1;
-        let count = 1;
-
-        while (true) {
-            const ringSize = radius * 6;
-
-            if (index < count + ringSize) {
-                let cube: CubeCoordinate = {
-                    x: AUTO_CUBE_DIRECTIONS[4].x * radius,
-                    y: AUTO_CUBE_DIRECTIONS[4].y * radius,
-                    z: AUTO_CUBE_DIRECTIONS[4].z * radius,
-                };
-
-                let offset = index - count;
-
-                for (let side = 0; side < AUTO_CUBE_DIRECTIONS.length; side += 1) {
-                    const direction = AUTO_CUBE_DIRECTIONS[side];
-
-                    for (let step = 0; step < radius; step += 1) {
-                        if (offset === 0) {
-                            return { q: cube.x, r: cube.z };
-                        }
-
-                        cube = {
-                            x: cube.x + direction.x,
-                            y: cube.y + direction.y,
-                            z: cube.z + direction.z,
-                        };
-
-                        offset -= 1;
-                    }
-                }
-            }
-
-            count += ringSize;
-            radius += 1;
-        }
-    }
-
-    private axialToPosition(q: number, r: number): TerritoryPosition {
-        const centerX = HEX_RADIUS * SQRT_3 * (q + r / 2);
-        const centerY = HEX_RADIUS * 1.5 * r;
-
-        return {
-            x: Math.round(centerX - HEX_WIDTH / 2),
-            y: Math.round(centerY - HEX_HEIGHT / 2),
-        };
+        return { x, y };
     }
 
     public getTerritoryIds(): string[] {
@@ -761,9 +738,9 @@ export class ExpeditionMap {
         let view = this.characters.get(id);
 
         if (!view) {
-            const element = this.createCharacterElement();
+            const { element, labelElement, portraitElement } = this.createCharacterElement();
             element.dataset.characterId = id;
-            view = { id, element, territoryId };
+            view = { id, element, territoryId, labelElement, portraitElement };
             this.characters.set(id, view);
         }
 
@@ -772,10 +749,20 @@ export class ExpeditionMap {
             view.territoryId = territoryId;
         }
 
-        view.element.textContent = label;
+        const image = character.image?.trim();
+        if (image) {
+            view.element.classList.add('map-territory__character--with-image');
+            view.portraitElement.style.backgroundImage = `url("${image}")`;
+        } else {
+            view.element.classList.remove('map-territory__character--with-image');
+            view.portraitElement.style.backgroundImage = '';
+        }
+
+        view.labelElement.textContent = label;
         view.element.style.setProperty('--character-color', color);
         view.element.style.setProperty('--character-text-color', textColor);
         view.element.title = title;
+        view.element.setAttribute('aria-label', title);
 
         if (!target.charactersContainer.contains(view.element)) {
             target.charactersContainer.appendChild(view.element);
@@ -819,10 +806,19 @@ export class ExpeditionMap {
         }
     }
 
-    private createCharacterElement(): HTMLDivElement {
+    private createCharacterElement() {
         const element = document.createElement('div');
         element.className = 'map-territory__character';
-        return element;
+
+        const portraitElement = document.createElement('div');
+        portraitElement.className = 'map-territory__character-portrait';
+
+        const labelElement = document.createElement('span');
+        labelElement.className = 'map-territory__character-label';
+
+        element.append(portraitElement, labelElement);
+
+        return { element, portraitElement, labelElement };
     }
 
     private resolveCharacterLabel(character: ExpeditionMapCharacterConfig): string {
@@ -1065,8 +1061,8 @@ export class ExpeditionMap {
         territories.forEach(({ position }) => {
             minX = Math.min(minX, position.x);
             minY = Math.min(minY, position.y);
-            maxX = Math.max(maxX, position.x + HEX_WIDTH);
-            maxY = Math.max(maxY, position.y + HEX_HEIGHT);
+            maxX = Math.max(maxX, position.x + TERRITORY_WIDTH);
+            maxY = Math.max(maxY, position.y + TERRITORY_HEIGHT);
         });
 
         const offsetX = minX < MAP_PADDING ? MAP_PADDING - minX : 0;
@@ -1093,8 +1089,8 @@ export class ExpeditionMap {
         this.territories.forEach((view) => {
             minX = Math.min(minX, view.data.position.x);
             minY = Math.min(minY, view.data.position.y);
-            maxX = Math.max(maxX, view.data.position.x + HEX_WIDTH);
-            maxY = Math.max(maxY, view.data.position.y + HEX_HEIGHT);
+            maxX = Math.max(maxX, view.data.position.x + TERRITORY_WIDTH);
+            maxY = Math.max(maxY, view.data.position.y + TERRITORY_HEIGHT);
         });
 
         const shiftX = minX < MAP_PADDING ? MAP_PADDING - minX : 0;
@@ -1120,8 +1116,8 @@ export class ExpeditionMap {
     private getDragBounds() {
         const minX = MAP_PADDING;
         const minY = MAP_PADDING;
-        const maxX = Math.max(minX, this.mapSize.width - MAP_PADDING - HEX_WIDTH);
-        const maxY = Math.max(minY, this.mapSize.height - MAP_PADDING - HEX_HEIGHT);
+        const maxX = Math.max(minX, this.mapSize.width - MAP_PADDING - TERRITORY_WIDTH);
+        const maxY = Math.max(minY, this.mapSize.height - MAP_PADDING - TERRITORY_HEIGHT);
 
         return { minX, minY, maxX, maxY };
     }
@@ -1464,9 +1460,9 @@ export class ExpeditionMap {
             height: rect.height,
         };
 
-        const polygon = HEX_POLYGON_POINTS.map((point) => ({
-            x: relative.x + (point.x / HEX_WIDTH) * relative.width,
-            y: relative.y + (point.y / HEX_HEIGHT) * relative.height,
+        const polygon = TERRITORY_POLYGON_POINTS.map((point) => ({
+            x: relative.x + (point.x / TERRITORY_WIDTH) * relative.width,
+            y: relative.y + (point.y / TERRITORY_HEIGHT) * relative.height,
         }));
 
         const center = {
