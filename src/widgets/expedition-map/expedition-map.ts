@@ -11,16 +11,25 @@ export type TerritorySide = {
     image?: string;
 };
 
-export type Territory = {
+export type TerritoryBase = {
     id: string;
     back: TerritorySide & { title: string };
     front: TerritorySide & { title: string; description: string; image: string };
-    position: { x: number; y: number };
     connections: TerritoryConnection[];
 };
 
+export type TerritoryPosition = { x: number; y: number };
+
+export type TerritoryConfig = TerritoryBase & {
+    position?: TerritoryPosition;
+};
+
+export type Territory = TerritoryBase & {
+    position: TerritoryPosition;
+};
+
 export type ExpeditionMapConfig = {
-    territories: Territory[];
+    territories: TerritoryConfig[];
 };
 
 type TerritoryView = {
@@ -31,10 +40,23 @@ type TerritoryView = {
 
 const HEX_WIDTH = 156;
 const HEX_HEIGHT = 180;
+const HEX_RADIUS = HEX_HEIGHT / 2;
+const SQRT_3 = Math.sqrt(3);
 const MIN_MAP_WIDTH = 1600;
 const MIN_MAP_HEIGHT = 1200;
 const MAP_PADDING = 160;
 const MOVE_THRESHOLD = 6;
+
+type CubeCoordinate = { x: number; y: number; z: number };
+
+const AUTO_CUBE_DIRECTIONS: CubeCoordinate[] = [
+    { x: 1, y: -1, z: 0 },
+    { x: 1, y: 0, z: -1 },
+    { x: 0, y: 1, z: -1 },
+    { x: -1, y: 1, z: 0 },
+    { x: -1, y: 0, z: 1 },
+    { x: 0, y: -1, z: 1 },
+];
 
 const HEX_POLYGON_POINTS = [
     { x: HEX_WIDTH * 0.25, y: 0 },
@@ -288,6 +310,7 @@ export class ExpeditionMap {
     private mapSize = { width: MIN_MAP_WIDTH, height: MIN_MAP_HEIGHT };
     private coordinateOffset = { x: 0, y: 0 };
     private offset = { x: 0, y: 0 };
+    private autoLayoutCursor = 0;
 
     constructor(root: HTMLElement | null, config: ExpeditionMapConfig) {
         if (!root) {
@@ -338,22 +361,28 @@ export class ExpeditionMap {
 
         this.initializePan();
 
-        const territories = config.territories.map((territory) => cloneTerritory(territory));
+        const territories = config.territories.map((territory) => this.createTerritoryState(territory));
         this.bootstrapCoordinateSpace(territories);
 
         territories.forEach((territory) => {
-            this.addTerritory(territory);
+            this.mountTerritory(territory);
         });
 
         this.refreshConnections();
     }
 
-    public addTerritory(territory: Territory): void {
+    public addTerritory(territory: TerritoryConfig): void {
         if (this.territories.has(territory.id)) {
             console.warn(`Territory with id "${territory.id}" already exists.`);
             return;
         }
 
+        const prepared = this.createTerritoryState(territory);
+        this.mountTerritory(prepared);
+        this.refreshConnections();
+    }
+
+    private mountTerritory(territory: Territory): void {
         territory.position.x += this.coordinateOffset.x;
         territory.position.y += this.coordinateOffset.y;
 
@@ -387,7 +416,76 @@ export class ExpeditionMap {
         });
 
         this.positionTerritory(view);
-        this.refreshConnections();
+    }
+
+    private createTerritoryState(source: TerritoryConfig): Territory {
+        const clone = cloneTerritory(source) as TerritoryConfig;
+        const position = clone.position ? { ...clone.position } : this.acquireAutoPosition();
+
+        return {
+            ...clone,
+            position,
+        };
+    }
+
+    private acquireAutoPosition(): TerritoryPosition {
+        const axial = this.getAutoAxial(this.autoLayoutCursor);
+        this.autoLayoutCursor += 1;
+        return this.axialToPosition(axial.q, axial.r);
+    }
+
+    private getAutoAxial(index: number): { q: number; r: number } {
+        if (index === 0) {
+            return { q: 0, r: 0 };
+        }
+
+        let radius = 1;
+        let count = 1;
+
+        while (true) {
+            const ringSize = radius * 6;
+
+            if (index < count + ringSize) {
+                let cube: CubeCoordinate = {
+                    x: AUTO_CUBE_DIRECTIONS[4].x * radius,
+                    y: AUTO_CUBE_DIRECTIONS[4].y * radius,
+                    z: AUTO_CUBE_DIRECTIONS[4].z * radius,
+                };
+
+                let offset = index - count;
+
+                for (let side = 0; side < AUTO_CUBE_DIRECTIONS.length; side += 1) {
+                    const direction = AUTO_CUBE_DIRECTIONS[side];
+
+                    for (let step = 0; step < radius; step += 1) {
+                        if (offset === 0) {
+                            return { q: cube.x, r: cube.z };
+                        }
+
+                        cube = {
+                            x: cube.x + direction.x,
+                            y: cube.y + direction.y,
+                            z: cube.z + direction.z,
+                        };
+
+                        offset -= 1;
+                    }
+                }
+            }
+
+            count += ringSize;
+            radius += 1;
+        }
+    }
+
+    private axialToPosition(q: number, r: number): TerritoryPosition {
+        const centerX = HEX_RADIUS * SQRT_3 * (q + r / 2);
+        const centerY = HEX_RADIUS * 1.5 * r;
+
+        return {
+            x: Math.round(centerX - HEX_WIDTH / 2),
+            y: Math.round(centerY - HEX_HEIGHT / 2),
+        };
     }
 
     public getTerritoryIds(): string[] {

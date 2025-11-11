@@ -14,7 +14,7 @@ import { CharacterCard, type CharacterCardState } from "./widgets/character-card
 import {
     ExpeditionMap,
     type ExpeditionMapConfig,
-    type Territory,
+    type TerritoryConfig,
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
 
@@ -361,7 +361,7 @@ function createRandomCard(): HandCardContent {
     }
 }
 
-function createRandomTerritory(map: ExpeditionMap): Territory {
+function createRandomTerritory(map: ExpeditionMap): TerritoryConfig {
     const seed = Math.floor(Math.random() * 1000)
     const id = `debug-territory-${Date.now()}-${seed}`
     const palette = ['#0ea5e9', '#22d3ee', '#a855f7', '#f97316', '#f43f5e', '#22c55e']
@@ -391,9 +391,6 @@ function createRandomTerritory(map: ExpeditionMap): Territory {
         connections.push({ targetId, type })
     }
 
-    const angle = Math.random() * Math.PI * 2
-    const distance = 120 + Math.random() * 180
-
     return {
         id,
         back: {
@@ -403,10 +400,6 @@ function createRandomTerritory(map: ExpeditionMap): Territory {
             title: `Исследованная область ${seed}`,
             description: 'Временная территория для проверки интерфейса карты.',
             image,
-        },
-        position: {
-            x: Math.round(Math.cos(angle) * distance),
-            y: Math.round(Math.sin(angle) * distance),
         },
         connections,
     }
