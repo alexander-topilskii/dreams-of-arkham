@@ -1,7 +1,6 @@
 import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
-import { SimpleCardHand, type SimpleCardContent } from "./widgets/simple-card-hand/simple-card-hand";
 import { CardHand, type CardHandCard } from "./widgets/card-hand/card-hand";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
@@ -17,7 +16,11 @@ import {
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
 
-type HandCardContent = SimpleCardContent & {
+type HandCardContent = {
+    id: string;
+    title: string;
+    description: string;
+    image?: string;
     power: number;
     health: number;
     effect?: string;
@@ -120,20 +123,7 @@ const movablePanels = new MovablePanels()
 const handRoot = document.getElementById('sample-hand')
 const handCards: HandCardContent[] = [...cardsConfig.initialHand]
 
-let simpleHand: SimpleCardHand | null = null
 let cardHand: CardHand | null = null
-let activeHand: 'simple' | 'card' = 'card'
-
-const renderSimpleHand = () => {
-    if (!simpleHand) {
-        simpleHand = new SimpleCardHand(handRoot, {
-            cards: handCards.map(({ id, title, description, image }) => ({ id, title, description, image })),
-        })
-        return
-    }
-
-    simpleHand.setCards(handCards.map(({ id, title, description, image }) => ({ id, title, description, image })))
-}
 
 const renderCardHand = () => {
     const cardSummaries: CardHandCard[] = handCards.map((card) => ({
@@ -278,68 +268,27 @@ if (debugRoot) {
         const card = createRandomCard()
         handCards.push(card)
 
-        if (activeHand === 'simple') {
-            simpleHand?.addCard({
-                id: card.id,
-                title: card.title,
-                description: card.description,
-                image: card.image,
-            })
-        } else {
-            cardHand?.addCard({
-                id: card.id,
-                title: card.title,
-                power: card.power,
-                health: card.health,
-                effect: card.effect,
-                artUrl: card.image,
-            })
-        }
-    })
-    cardsGroup.appendChild(addCardButton);
-
-    let handToggleButton: HTMLButtonElement | null = null
-
-    const updateHandToggleLabel = () => {
-        if (!handToggleButton) {
+        if (!cardHand) {
+            renderCardHand()
             return
         }
 
-        handToggleButton.textContent =
-            activeHand === 'card' ? 'Переключить на SimpleCardHand' : 'Переключить на CardHand'
-    }
-
-    const switchHand = () => {
-        if (activeHand === 'card') {
-            cardHand?.destroy()
-            cardHand = null
-            renderSimpleHand()
-            activeHand = 'simple'
-        } else {
-            simpleHand?.destroy()
-            simpleHand = null
-            renderCardHand()
-            activeHand = 'card'
-        }
-
-        updateHandToggleLabel()
-    }
+        cardHand.addCard({
+            id: card.id,
+            title: card.title,
+            power: card.power,
+            health: card.health,
+            effect: card.effect,
+            artUrl: card.image,
+        })
+    })
+    cardsGroup.appendChild(addCardButton);
 
     const openCardHandButton = createDebugButton('Показать CardHand', () => {
-        if (activeHand !== 'card') {
-            simpleHand?.destroy()
-            simpleHand = null
-            renderCardHand()
-            activeHand = 'card'
-            updateHandToggleLabel()
-        }
         cardHand?.focus()
     })
 
-    handToggleButton = createDebugButton('', switchHand)
-    updateHandToggleLabel()
     cardsGroup.appendChild(openCardHandButton)
-    cardsGroup.appendChild(handToggleButton)
     panel.appendChild(cardsGroup);
 
     const mapGroup = createDebugGroup('Карта');

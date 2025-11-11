@@ -1,3 +1,4 @@
+[2025-11-10 15:05][CHANGE] Removed SimpleCardHand widget and debug toggle to focus on the advanced CardHand interface.
 [2025-11-10 14:30][CHANGE] Moved debug control panel to the right bottom workspace quadrant for quicker access near event tools.
 [2025-11-10 13:55][ADD FEATURE] Introduced event deck widget with data-driven cards and debug controls for drawing and reshuffling.
 [2025-11-10 12:30][CHANGE] Relocated expedition map to middle top panel and card hand to middle bottom for revised layout flow.
