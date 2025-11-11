@@ -1,3 +1,4 @@
+[2025-11-11 17:05][FIX] Raised expedition map character tokens above territory faces to keep them visible.<br>
 [2025-11-11 14:25][ADD FEATURE] Added character tokens to the expedition map with placement API and debug control.<br>
 [2025-11-11 14:02][FIX] Centered expedition map text within an invisible frame and synchronized arrows with zoomed hexes.<br>
 [2025-11-11 16:15][CHANGE] Switched hand cards to cost/move schema, hid effects in UI, and generated unique instance IDs.<br>
