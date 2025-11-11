@@ -1,3 +1,4 @@
+[2025-11-11 15:20][ADD FEATURE] Replaced expedition map hexes with rectangular cards and portrait-ready tokens.<br>
 [2025-11-11 17:45][ADD FEATURE] Added game engine widget with command dispatcher, initial map placement, and dual narrative/system logs.<br>
 [2025-11-11 17:05][FIX] Raised expedition map character tokens above territory faces to keep them visible.<br>
 [2025-11-11 14:25][ADD FEATURE] Added character tokens to the expedition map with placement API and debug control.<br>
