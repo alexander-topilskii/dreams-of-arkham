@@ -4,31 +4,46 @@
       "id": "mystic-vision",
       "title": "Мистическое видение",
       "description": "Проясняет судьбу и открывает скрытые подсказки.",
-      "image": "/images/cards/mystic-vision.svg"
+      "image": "/images/cards/mystic-vision.svg",
+      "power": 2,
+      "health": 3,
+      "effect": "Когда разыгрывается, позволяет открыть дополнительную карту событий."
     },
     {
       "id": "innsmouth-clues",
       "title": "Улики улицы Инсмут",
       "description": "Следы культистов ведут по затопленным улочкам.",
-      "image": "/images/cards/innsmouth-clues.svg"
+      "image": "/images/cards/innsmouth-clues.svg",
+      "power": 3,
+      "health": 2,
+      "effect": "Если сыграть сразу две улицы, получите +1 к сбору улик."
     },
     {
       "id": "enigmatic-key",
       "title": "Загадочный ключ",
       "description": "Открывает двери, которые лучше бы оставались закрытыми.",
-      "image": "/images/cards/enigmatic-key.svg"
+      "image": "/images/cards/enigmatic-key.svg",
+      "power": 1,
+      "health": 4,
+      "effect": "Можно потратить, чтобы пропустить проверку ловкости."
     },
     {
       "id": "abyss-call",
       "title": "Зов Бездны",
       "description": "Соблазняет обещаниями силы, но требует осторожности.",
-      "image": "/images/cards/abyss-call.svg"
+      "image": "/images/cards/abyss-call.svg",
+      "power": 4,
+      "health": 1,
+      "effect": "При розыгрыше получите +2 силы, но увеличьте гибель на 1."
     },
     {
       "id": "guardian-talisman",
       "title": "Талисман хранителя",
       "description": "Укрепляет волю и защищает от чуждых влияний.",
-      "image": "/images/cards/guardian-talisman.svg"
+      "image": "/images/cards/guardian-talisman.svg",
+      "power": 2,
+      "health": 5,
+      "effect": "Сбрасывается, чтобы отменить одно ранение."
     }
   ]
 }

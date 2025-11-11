@@ -2,7 +2,7 @@ import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
 import { SimpleCardHand, type SimpleCardContent } from "./widgets/simple-card-hand/simple-card-hand";
-import { CardHand } from "./widgets/card-hand/card-hand";
+import { CardHand, type CardHandCard } from "./widgets/card-hand/card-hand";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import cardsSource from "./data/cards.json";
@@ -15,8 +15,14 @@ import {
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
 
+type HandCardContent = SimpleCardContent & {
+    power: number;
+    health: number;
+    effect?: string;
+};
+
 type CardsConfig = {
-    initialHand: SimpleCardContent[];
+    initialHand: HandCardContent[];
 };
 
 type VictoryProgress = {
@@ -109,7 +115,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 const movablePanels = new MovablePanels()
 
 const handRoot = document.getElementById('sample-hand')
-const handCards: SimpleCardContent[] = [...cardsConfig.initialHand]
+const handCards: HandCardContent[] = [...cardsConfig.initialHand]
 
 let simpleHand: SimpleCardHand | null = null
 let cardHand: CardHand | null = null
@@ -118,16 +124,23 @@ let activeHand: 'simple' | 'card' = 'card'
 const renderSimpleHand = () => {
     if (!simpleHand) {
         simpleHand = new SimpleCardHand(handRoot, {
-            cards: handCards,
+            cards: handCards.map(({ id, title, description, image }) => ({ id, title, description, image })),
         })
         return
     }
 
-    simpleHand.setCards(handCards)
+    simpleHand.setCards(handCards.map(({ id, title, description, image }) => ({ id, title, description, image })))
 }
 
 const renderCardHand = () => {
-    const cardSummaries = handCards.map((card) => card.title)
+    const cardSummaries: CardHandCard[] = handCards.map((card) => ({
+        id: card.id,
+        title: card.title,
+        power: card.power,
+        health: card.health,
+        effect: card.effect,
+        artUrl: card.image,
+    }))
 
     if (!cardHand) {
         cardHand = new CardHand(handRoot, {
@@ -260,9 +273,21 @@ if (debugRoot) {
         handCards.push(card)
 
         if (activeHand === 'simple') {
-            simpleHand?.addCard(card)
+            simpleHand?.addCard({
+                id: card.id,
+                title: card.title,
+                description: card.description,
+                image: card.image,
+            })
         } else {
-            cardHand?.addCard(card.title)
+            cardHand?.addCard({
+                id: card.id,
+                title: card.title,
+                power: card.power,
+                health: card.health,
+                effect: card.effect,
+                artUrl: card.image,
+            })
         }
     })
     cardsGroup.appendChild(addCardButton);
@@ -294,8 +319,20 @@ if (debugRoot) {
         updateHandToggleLabel()
     }
 
+    const openCardHandButton = createDebugButton('Показать CardHand', () => {
+        if (activeHand !== 'card') {
+            simpleHand?.destroy()
+            simpleHand = null
+            renderCardHand()
+            activeHand = 'card'
+            updateHandToggleLabel()
+        }
+        cardHand?.focus()
+    })
+
     handToggleButton = createDebugButton('', switchHand)
     updateHandToggleLabel()
+    cardsGroup.appendChild(openCardHandButton)
     cardsGroup.appendChild(handToggleButton)
     panel.appendChild(cardsGroup);
 
@@ -307,7 +344,7 @@ if (debugRoot) {
     panel.appendChild(mapGroup);
 }
 
-function createRandomCard(): SimpleCardContent {
+function createRandomCard(): HandCardContent {
     const seed = Math.floor(Math.random() * 1000)
     const id = `debug-${Date.now()}-${seed}`
     const palette = ['#1d4ed8', '#0ea5e9', '#22c55e', '#6366f1', '#f97316', '#ec4899']
@@ -332,6 +369,9 @@ function createRandomCard(): SimpleCardContent {
         title: `Случайная карта ${seed}`,
         description: 'Экспериментальная карта для отладки интерфейса.',
         image,
+        power: 1 + (seed % 6),
+        health: 2 + ((seed * 3) % 6),
+        effect: 'Отладочный эффект: временно усиливает визуальный тест.',
     }
 }
 
