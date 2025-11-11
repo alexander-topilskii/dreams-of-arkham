@@ -8,7 +8,9 @@ import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 import mapSource from "./data/map.json";
 import eventDeckSource from "./data/event-deck.json";
+import characterSource from "./data/character.json";
 import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck";
+import { CharacterCard, type CharacterCardState } from "./widgets/character-card/character-card";
 import {
     ExpeditionMap,
     type ExpeditionMapConfig,
@@ -85,10 +87,16 @@ type BooleanControlConfig = {
     onChange: () => void;
 };
 
+type CharacterData = Omit<CharacterCardState, 'portraitUrl'> & {
+    id: string;
+    portrait?: string;
+};
+
 const cardsConfig = cardsSource as CardsConfig;
 const rulesConfig = rulesSource as RulesConfig;
 const expeditionMapConfig = mapSource as ExpeditionMapConfig;
 const eventDeckConfig = eventDeckSource as EventDeckConfig;
+const characterConfig = characterSource as CharacterData;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
@@ -119,6 +127,19 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
 // -- ui components
 const movablePanels = new MovablePanels()
+
+const characterRoot = document.getElementById('left-top')
+const { portrait, id: characterId, ...characterStateWithoutPortrait } = characterConfig
+const initialCharacterState: CharacterCardState = {
+    ...characterStateWithoutPortrait,
+    portraitUrl: portrait,
+}
+
+if (characterRoot) {
+    characterRoot.dataset.characterId = characterId
+}
+
+const characterCard = new CharacterCard(characterRoot, initialCharacterState)
 
 const handRoot = document.getElementById('sample-hand')
 const handCards: HandCardContent[] = [...cardsConfig.initialHand]
