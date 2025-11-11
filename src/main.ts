@@ -4,6 +4,7 @@ import { MovablePanels } from "./widgets/movable-panels/movable-panels";
 import { CardHand, type CardEffect, type CardHandCard, type CardHandDropResult } from "./widgets/card-hand/card-hand";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
+import { DebugPanel } from "./widgets/debug-panel/debug-panel";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 import mapSource from "./data/map.json";
@@ -84,21 +85,6 @@ type ChapterConfig<Key extends string> = {
 type RulesConfig = {
     victory: ChapterConfig<keyof VictoryProgress>[];
     defeat: ChapterConfig<keyof DefeatProgress>[];
-};
-
-type NumericControlConfig = {
-    get: () => number;
-    set: (value: number) => void;
-    min?: number;
-    max?: number;
-    step?: number;
-    onChange: () => void;
-};
-
-type BooleanControlConfig = {
-    get: () => boolean;
-    set: (value: boolean) => void;
-    onChange: () => void;
 };
 
 type CharacterData = Omit<CharacterCardState, 'portraitUrl'> & {
@@ -290,81 +276,59 @@ if (engineRoot instanceof HTMLElement) {
 }
 
 if (debugRoot) {
-    const panel = createDebugPanel();
-    debugRoot.appendChild(panel);
+    const debugPanel = new DebugPanel(debugRoot, { title: 'Debug панель' });
 
-    const header = document.createElement('h2');
-    header.textContent = 'Debug панель';
-    header.style.margin = '0';
-    header.style.fontSize = '14px';
-    header.style.fontWeight = '600';
-    panel.appendChild(header);
+    const victoryGroup = debugPanel.addGroup('Параметры победы');
+    debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
+        get: () => victoryProgress.collectedClues,
+        set: (value) => {
+            victoryProgress.collectedClues = value;
+        },
+        min: 0,
+        onChange: syncTimelines,
+    });
+    debugPanel.addNumericControl(victoryGroup, 'Сегменты ритуала', {
+        get: () => victoryProgress.ritualSegments,
+        set: (value) => {
+            victoryProgress.ritualSegments = value;
+        },
+        min: 0,
+        onChange: syncTimelines,
+    });
+    debugPanel.addBooleanControl(victoryGroup, 'Финальная печать', {
+        get: () => victoryProgress.finalSeal,
+        set: (value) => {
+            victoryProgress.finalSeal = value;
+        },
+        onChange: syncTimelines,
+    });
 
-    const victoryGroup = createDebugGroup('Параметры победы');
-    victoryGroup.appendChild(
-        createNumericControl('Собранные улики', {
-            get: () => victoryProgress.collectedClues,
-            set: (value) => {
-                victoryProgress.collectedClues = value;
-            },
-            min: 0,
-            onChange: syncTimelines,
-        })
-    );
-    victoryGroup.appendChild(
-        createNumericControl('Сегменты ритуала', {
-            get: () => victoryProgress.ritualSegments,
-            set: (value) => {
-                victoryProgress.ritualSegments = value;
-            },
-            min: 0,
-            onChange: syncTimelines,
-        })
-    );
-    victoryGroup.appendChild(
-        createBooleanControl('Финальная печать', {
-            get: () => victoryProgress.finalSeal,
-            set: (value) => {
-                victoryProgress.finalSeal = value;
-            },
-            onChange: syncTimelines,
-        })
-    );
-    panel.appendChild(victoryGroup);
+    const defeatGroup = debugPanel.addGroup('Параметры поражения');
+    debugPanel.addNumericControl(defeatGroup, 'Очки гибели', {
+        get: () => defeatProgress.doom,
+        set: (value) => {
+            defeatProgress.doom = value;
+        },
+        min: 0,
+        onChange: syncTimelines,
+    });
+    debugPanel.addNumericControl(defeatGroup, 'Активность культа', {
+        get: () => defeatProgress.cultActivity,
+        set: (value) => {
+            defeatProgress.cultActivity = value;
+        },
+        min: 0,
+        onChange: syncTimelines,
+    });
+    debugPanel.addBooleanControl(defeatGroup, 'Пробуждение Древнего', {
+        get: () => defeatProgress.awakening,
+        set: (value) => {
+            defeatProgress.awakening = value;
+        },
+        onChange: syncTimelines,
+    });
 
-    const defeatGroup = createDebugGroup('Параметры поражения');
-    defeatGroup.appendChild(
-        createNumericControl('Очки гибели', {
-            get: () => defeatProgress.doom,
-            set: (value) => {
-                defeatProgress.doom = value;
-            },
-            min: 0,
-            onChange: syncTimelines,
-        })
-    );
-    defeatGroup.appendChild(
-        createNumericControl('Активность культа', {
-            get: () => defeatProgress.cultActivity,
-            set: (value) => {
-                defeatProgress.cultActivity = value;
-            },
-            min: 0,
-            onChange: syncTimelines,
-        })
-    );
-    defeatGroup.appendChild(
-        createBooleanControl('Пробуждение Древнего', {
-            get: () => defeatProgress.awakening,
-            set: (value) => {
-                defeatProgress.awakening = value;
-            },
-            onChange: syncTimelines,
-        })
-    );
-    panel.appendChild(defeatGroup);
-
-    const cardsGroup = createDebugGroup('Карты');
+    const cardsGroup = debugPanel.addGroup('Карты');
     const addCardButton = createDebugButton('Добавить карту', () => {
         const card = createRandomCard()
         handCards.push(card)
@@ -391,9 +355,8 @@ if (debugRoot) {
     })
 
     cardsGroup.appendChild(openCardHandButton)
-    panel.appendChild(cardsGroup);
 
-    const mapGroup = createDebugGroup('Карта');
+    const mapGroup = debugPanel.addGroup('Карта');
     const addTerritoryButton = createDebugButton('Добавить территорию', () => {
         expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
     });
@@ -411,9 +374,8 @@ if (debugRoot) {
         expeditionMap.placeCharacter(characterToken, territoryId);
     });
     mapGroup.appendChild(addCharacterButton);
-    panel.appendChild(mapGroup);
 
-    const eventsGroup = createDebugGroup('События');
+    const eventsGroup = debugPanel.addGroup('События');
     const triggerEventButton = createDebugButton('Вызвать событие', () => {
         eventDeck.triggerEvent();
     });
@@ -421,7 +383,6 @@ if (debugRoot) {
         eventDeck.reshuffleDiscard();
     });
     eventsGroup.append(triggerEventButton, reshuffleEventsButton);
-    panel.appendChild(eventsGroup);
 }
 
 function createRandomCard(): HandCardContent {
@@ -570,122 +531,3 @@ function createPhase<Progress extends Record<string, number | boolean>>(
     };
 }
 
-function createDebugPanel(): HTMLDivElement {
-    const panel = document.createElement('div');
-    panel.style.display = 'flex';
-    panel.style.flexDirection = 'column';
-    panel.style.gap = '12px';
-    panel.style.padding = '16px';
-    panel.style.background = 'rgba(15, 23, 42, 0.9)';
-    panel.style.border = '1px solid rgba(148, 163, 184, 0.3)';
-    panel.style.borderRadius = '12px';
-    panel.style.color = '#e2e8f0';
-    panel.style.fontFamily = 'system-ui, sans-serif';
-    panel.style.fontSize = '13px';
-    panel.style.maxWidth = '320px';
-    panel.style.boxShadow = '0 8px 24px rgba(15, 23, 42, 0.35)';
-    return panel;
-}
-
-function createDebugGroup(title: string): HTMLDivElement {
-    const group = document.createElement('div');
-    group.style.display = 'flex';
-    group.style.flexDirection = 'column';
-    group.style.gap = '8px';
-
-    const heading = document.createElement('div');
-    heading.textContent = title;
-    heading.style.fontSize = '11px';
-    heading.style.letterSpacing = '0.08em';
-    heading.style.textTransform = 'uppercase';
-    heading.style.opacity = '0.75';
-
-    group.appendChild(heading);
-    return group;
-}
-
-function createNumericControl(label: string, config: NumericControlConfig): HTMLDivElement {
-    const row = document.createElement('div');
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = '1fr auto auto auto';
-    row.style.alignItems = 'center';
-    row.style.gap = '8px';
-
-    const labelEl = document.createElement('span');
-    labelEl.textContent = label;
-    labelEl.style.whiteSpace = 'nowrap';
-    labelEl.style.overflow = 'hidden';
-    labelEl.style.textOverflow = 'ellipsis';
-
-    const decreaseBtn = createDebugButton('−', () => {
-        applyChange(-1);
-    });
-    const valueEl = document.createElement('span');
-    valueEl.style.minWidth = '36px';
-    valueEl.style.textAlign = 'center';
-    valueEl.style.fontVariantNumeric = 'tabular-nums';
-
-    const increaseBtn = createDebugButton('+', () => {
-        applyChange(1);
-    });
-
-    const applyChange = (direction: number) => {
-        const step = config.step ?? 1;
-        const current = config.get();
-        const next = current + direction * step;
-        const min = config.min ?? Number.NEGATIVE_INFINITY;
-        const max = config.max ?? Number.POSITIVE_INFINITY;
-        const clamped = Math.min(max, Math.max(min, next));
-        config.set(clamped);
-        updateValue();
-        config.onChange();
-    };
-
-    const updateValue = () => {
-        valueEl.textContent = String(config.get());
-    };
-
-    updateValue();
-
-    row.append(labelEl, decreaseBtn, valueEl, increaseBtn);
-    return row;
-}
-
-function createBooleanControl(label: string, config: BooleanControlConfig): HTMLDivElement {
-    const row = document.createElement('div');
-    row.style.display = 'grid';
-    row.style.gridTemplateColumns = '1fr auto auto auto';
-    row.style.alignItems = 'center';
-    row.style.gap = '8px';
-
-    const labelEl = document.createElement('span');
-    labelEl.textContent = label;
-    labelEl.style.whiteSpace = 'nowrap';
-    labelEl.style.overflow = 'hidden';
-    labelEl.style.textOverflow = 'ellipsis';
-
-    const disableBtn = createDebugButton('−', () => {
-        config.set(false);
-        updateValue();
-        config.onChange();
-    });
-
-    const valueEl = document.createElement('span');
-    valueEl.style.minWidth = '36px';
-    valueEl.style.textAlign = 'center';
-
-    const enableBtn = createDebugButton('+', () => {
-        config.set(true);
-        updateValue();
-        config.onChange();
-    });
-
-    const updateValue = () => {
-        valueEl.textContent = config.get() ? 'Да' : 'Нет';
-    };
-
-    updateValue();
-
-    row.append(labelEl, disableBtn, valueEl, enableBtn);
-    return row;
-}
