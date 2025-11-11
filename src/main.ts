@@ -1,7 +1,13 @@
 import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
-import { CardHand, type CardEffect, type CardHandCard, type CardHandDropResult } from "./widgets/card-hand/card-hand";
+import { CardHand, type CardEffect } from "./widgets/card-hand/card-hand";
+import {
+    CardHandController,
+    generateCardInstanceId,
+    type HandCardContent,
+    type HandCardDefinition,
+} from "./widgets/card-hand/card-hand-controller";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import { DebugPanel } from "./widgets/debug-panel/debug-panel";
@@ -19,33 +25,11 @@ import {
     type TerritoryConfig,
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
-import { GameEngine, type MoveAttemptResult, type MoveCardDescriptor } from "./widgets/game-engine/game-engine";
-
-type HandCardDefinition = {
-    id: string;
-    title: string;
-    description: string;
-    image?: string;
-    cost: number;
-    effect: CardEffect;
-};
-
-type HandCardContent = HandCardDefinition & {
-    instanceId: string;
-};
+import { GameEngine } from "./widgets/game-engine/game-engine";
 
 type CardsConfig = {
     initialHand: HandCardDefinition[];
 };
-
-function generateCardInstanceId(baseId: string): string {
-    const normalized = baseId?.trim() ? baseId.trim() : "card";
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-        return `${normalized}-${crypto.randomUUID()}`;
-    }
-    const randomPart = Math.random().toString(36).slice(2, 10);
-    return `${normalized}-${Date.now()}-${randomPart}`;
-}
 
 type VictoryProgress = {
     collectedClues: number;
@@ -142,39 +126,17 @@ if (characterRoot) {
 const characterCard = new CharacterCard(characterRoot, initialCharacterState)
 
 const handRoot = document.getElementById('sample-hand')
-const handCards: HandCardContent[] = cardsConfig.initialHand.map((card) => ({
-    ...card,
-    instanceId: generateCardInstanceId(card.id),
-}))
-
-let cardHand: CardHand | null = null
-
 let debugCharacterCursor = 0
 
-const renderCardHand = () => {
-    const cardSummaries: CardHandCard[] = handCards.map((card) => ({
-        id: card.id,
-        title: card.title,
-        description: card.description,
-        cost: card.cost,
-        effect: card.effect,
-        artUrl: card.image,
-        instanceId: card.instanceId,
-    }))
+let cardHandController: CardHandController
 
-    if (!cardHand) {
-        cardHand = new CardHand(handRoot, {
-            cards: cardSummaries,
-            onMoveCardDrop: handleMoveCardDrop,
-            onMoveCardTargetMissing: handleMoveCardTargetMissing,
-            onCardConsumed: handleCardConsumed,
-            onMoveCardDropFailure: handleMoveCardDropFailure,
-        })
-        return
-    }
-
-    cardHand.setCards(cardSummaries)
-}
+const cardHand = new CardHand(handRoot, {
+    onMoveCardDrop: (card, territoryId) => cardHandController.onDrop(card, territoryId),
+    onMoveCardTargetMissing: (card) => cardHandController.onDropTargetMissing(card),
+    onCardConsumed: (card) => cardHandController.handleCardConsumed(card),
+    onMoveCardDropFailure: (card, territoryId, message) =>
+        cardHandController.onDropFailure(card, territoryId, message),
+})
 
 const mapContainer = document.getElementById('map-panel');
 const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
@@ -198,41 +160,14 @@ const gameEngine = new GameEngine(engineRoot, {
 });
 gameEngine.initialize();
 
-function handleCardConsumed(card: CardHandCard): void {
-    if (!card.instanceId) {
-        return;
-    }
-    const index = handCards.findIndex((entry) => entry.instanceId === card.instanceId);
-    if (index !== -1) {
-        handCards.splice(index, 1);
-    }
-}
-
-function handleMoveCardDrop(card: CardHandCard, territoryId: string): CardHandDropResult {
-    const descriptor: MoveCardDescriptor = {
-        id: card.id,
-        title: card.title,
-        cost: card.cost,
-    };
-    const result: MoveAttemptResult = gameEngine.attemptMoveWithCard(descriptor, territoryId);
-    if (result.success) {
-        return { status: 'success' };
-    }
-    return { status: 'error', message: result.message };
-}
-
-function handleMoveCardDropFailure(_card: CardHandCard, _territoryId: string, _message?: string): void {
-    // Game engine already logs and re-renders failure outcomes inside attemptMoveWithCard.
-}
-
-function handleMoveCardTargetMissing(card: CardHandCard): void {
-    const prompt = `Выберите локацию для «${card.title}».`;
-    gameEngine.logUserMessage(prompt);
-    gameEngine.logSystemMessage(`move_hint:target_missing:${card.id}`);
-    gameEngine.refresh();
-}
-
-renderCardHand();
+cardHandController = new CardHandController(
+    { cardHand, gameEngine },
+    {
+        initialCards: cardsConfig.initialHand,
+        createDebugCard: () => createRandomCard(generateCardInstanceId),
+    },
+)
+cardHandController.initialize()
 
 // -- game loop timelines
 const victoryProgress: VictoryProgress = {
@@ -330,28 +265,12 @@ if (debugRoot) {
 
     const cardsGroup = debugPanel.addGroup('Карты');
     const addCardButton = createDebugButton('Добавить карту', () => {
-        const card = createRandomCard()
-        handCards.push(card)
-
-        if (!cardHand) {
-            renderCardHand()
-            return
-        }
-
-        cardHand.addCard({
-            id: card.id,
-            title: card.title,
-            description: card.description,
-            cost: card.cost,
-            effect: card.effect,
-            artUrl: card.image,
-            instanceId: card.instanceId,
-        })
+        cardHandController.addDebugCard()
     })
     cardsGroup.appendChild(addCardButton);
 
     const openCardHandButton = createDebugButton('Показать CardHand', () => {
-        cardHand?.focus()
+        cardHand.focus()
     })
 
     cardsGroup.appendChild(openCardHandButton)
@@ -385,7 +304,9 @@ if (debugRoot) {
     eventsGroup.append(triggerEventButton, reshuffleEventsButton);
 }
 
-function createRandomCard(): HandCardContent {
+function createRandomCard(
+    generateInstanceId: (baseId: string) => string = generateCardInstanceId,
+): HandCardContent {
     const seed = Math.floor(Math.random() * 1000)
     const id = `debug-${Date.now()}-${seed}`
     const palette = ['#1d4ed8', '#0ea5e9', '#22c55e', '#6366f1', '#f97316', '#ec4899']
@@ -413,7 +334,7 @@ function createRandomCard(): HandCardContent {
         image,
         cost: 1 + (seed % 4),
         effect: effects[seed % effects.length],
-        instanceId: generateCardInstanceId(id),
+        instanceId: generateInstanceId(id),
     }
 }
 
