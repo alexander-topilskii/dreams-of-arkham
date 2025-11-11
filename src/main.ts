@@ -1,7 +1,7 @@
 import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
-import { CardHand, type CardHandCard } from "./widgets/card-hand/card-hand";
+import { CardHand, type CardEffect, type CardHandCard } from "./widgets/card-hand/card-hand";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import cardsSource from "./data/cards.json";
@@ -23,9 +23,8 @@ type HandCardContent = {
     title: string;
     description: string;
     image?: string;
-    power: number;
-    health: number;
-    effect?: string;
+    cost: number;
+    effect: CardEffect;
 };
 
 type CardsConfig = {
@@ -147,13 +146,14 @@ const handCards: HandCardContent[] = [...cardsConfig.initialHand]
 let cardHand: CardHand | null = null
 
 const renderCardHand = () => {
-    const cardSummaries: CardHandCard[] = handCards.map((card) => ({
+    const cardSummaries: CardHandCard[] = handCards.map((card, index) => ({
         id: card.id,
         title: card.title,
-        power: card.power,
-        health: card.health,
+        description: card.description,
+        cost: card.cost,
         effect: card.effect,
         artUrl: card.image,
+        instanceId: `${card.id}-${index}`,
     }))
 
     if (!cardHand) {

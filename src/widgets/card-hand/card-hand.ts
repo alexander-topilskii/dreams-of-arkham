@@ -1,11 +1,16 @@
+export type CardEffect = 'move' | 'attack' | 'hide' | 'search'
+
 export type CardHandCard = {
     id: string
     title: string
-    power: number
-    health: number
-    effect?: string
+    description: string
+    cost: number
+    effect: CardEffect
     artUrl?: string
+    instanceId?: string
 }
+
+type InternalCard = CardHandCard & { instanceId: string }
 
 export type CardHandViewport = {
     start: number
@@ -70,7 +75,8 @@ export class CardHand {
     private readonly leftButton: HTMLButtonElement
     private readonly rightButton: HTMLButtonElement
 
-    private cards: CardHandCard[] = []
+    private cards: InternalCard[] = []
+    private instanceIdCounter = 0
     private readonly cardElements = new Map<string, HTMLDivElement>()
     private readonly selectedIds = new Set<string>()
     private selectionMode: SelectionMode = { anchorId: null, lastRangeIds: new Set() }
@@ -182,13 +188,14 @@ export class CardHand {
     }
 
     addCard(card: CardHandCard) {
-        this.cards.push(card)
-        this.appendCard(card, this.cards.length - 1, true)
+        const internalCard = this.prepareCard(card)
+        this.cards.push(internalCard)
+        this.appendCard(internalCard, this.cards.length - 1, true)
         this.refreshCardIndices()
         this.updateLayout()
         this.updateSelectionUi()
         this.updateEmptyState()
-        this.scrollToCard(card.id)
+        this.scrollToCard(internalCard.instanceId)
         this.emitViewport()
     }
 
@@ -197,7 +204,7 @@ export class CardHand {
     }
 
     setCards(cards: CardHandCard[]) {
-        this.cards = cards.map((card) => ({ ...card }))
+        this.cards = cards.map((card) => this.prepareCard(card))
         this.cardElements.clear()
         this.strip.innerHTML = ''
         this.selectedIds.clear()
@@ -221,7 +228,7 @@ export class CardHand {
     }
 
     removeCard(id: string) {
-        const index = this.cards.findIndex((card) => card.id === id)
+        const index = this.cards.findIndex((card) => card.instanceId === id)
         if (index === -1) {
             return
         }
@@ -274,13 +281,13 @@ export class CardHand {
         }
     }
 
-    private appendCard(card: CardHandCard, index: number, animate: boolean) {
+    private appendCard(card: InternalCard, index: number, animate: boolean) {
         const wrapper = document.createElement('div')
         wrapper.className = 'card-hand-widget__card-wrapper'
         if (animate) {
             wrapper.classList.add('card-hand-widget__card-wrapper--enter')
         }
-        wrapper.dataset.id = card.id
+        wrapper.dataset.id = card.instanceId
         wrapper.dataset.index = String(index)
         wrapper.style.width = `${this.cardWidth}px`
         wrapper.style.flex = `0 0 ${this.cardWidth}px`
@@ -290,6 +297,8 @@ export class CardHand {
         button.type = 'button'
         button.className = 'card-hand-widget__card'
         button.setAttribute('data-card-button', 'true')
+        button.dataset.cardEffect = card.effect
+        button.dataset.cardType = card.id
         button.style.height = `${Math.floor(this.cardWidth * 1.4)}px`
         button.addEventListener('click', (event) => this.handleCardClick(card, event as MouseEvent))
         button.addEventListener('pointerdown', (event) => this.handleCardPointerDown(card, event))
@@ -305,39 +314,36 @@ export class CardHand {
             art.appendChild(img)
         }
 
-        const header = document.createElement('div')
-        header.className = 'card-hand-widget__title'
-        header.textContent = card.title
-        header.title = card.title
+        const meta = document.createElement('div')
+        meta.className = 'card-hand-widget__meta'
 
-        const stats = document.createElement('div')
-        stats.className = 'card-hand-widget__stats'
+        const title = document.createElement('div')
+        title.className = 'card-hand-widget__title'
+        title.textContent = card.title
+        title.title = card.title
 
-        const power = document.createElement('span')
-        power.innerHTML = `⚔️ <strong>${card.power}</strong>`
+        const cost = document.createElement('span')
+        cost.className = 'card-hand-widget__cost'
+        cost.innerHTML = `💠 <strong>${card.cost}</strong>`
+        cost.title = `Стоимость: ${card.cost}`
 
-        const health = document.createElement('span')
-        health.innerHTML = `❤️ <strong>${card.health}</strong>`
+        meta.append(title, cost)
 
-        stats.append(power, health)
+        const description = document.createElement('div')
+        description.className = 'card-hand-widget__description'
+        description.textContent = card.description
+        description.title = card.description
 
-        const effect = document.createElement('div')
-        effect.className = 'card-hand-widget__effect'
-        if (card.effect) {
-            effect.textContent = card.effect
-            effect.title = card.effect
-        }
-
-        button.append(art, header, stats, effect)
+        button.append(art, meta, description)
 
         wrapper.appendChild(button)
         this.strip.appendChild(wrapper)
-        this.cardElements.set(card.id, wrapper)
+        this.cardElements.set(card.instanceId, wrapper)
     }
 
     private refreshCardIndices() {
         this.cards.forEach((card, index) => {
-            const element = this.cardElements.get(card.id)
+            const element = this.cardElements.get(card.instanceId)
             if (element) {
                 element.dataset.index = String(index)
             }
@@ -376,32 +382,32 @@ export class CardHand {
         }
     }
 
-    private handleCardClick(card: CardHandCard, event: MouseEvent) {
+    private handleCardClick(card: InternalCard, event: MouseEvent) {
         const isMac = navigator.platform.toLowerCase().includes('mac')
         const ctrl = isMac ? event.metaKey : event.ctrlKey
         const shift = event.shiftKey
-        this.selectCard(card.id, {
+        this.selectCard(card.instanceId, {
             replace: !ctrl && !shift,
             toggle: ctrl,
             range: shift,
         })
-        this.anchorSelection(card.id)
+        this.anchorSelection(card.instanceId)
     }
 
-    private handleCardPointerDown(card: CardHandCard, event: PointerEvent) {
-        this.anchorSelection(card.id)
+    private handleCardPointerDown(card: InternalCard, event: PointerEvent) {
+        this.anchorSelection(card.instanceId)
 
         if (event.pointerType === 'touch') {
             this.viewport.setPointerCapture(event.pointerId)
             const timer = window.setTimeout(() => {
                 this.touchSelectionActive = true
-                this.selectCard(card.id, { replace: true })
+                this.selectCard(card.instanceId, { replace: true })
             }, LONG_PRESS_DURATION)
             this.longPressTimers.set(event.pointerId, timer)
         }
     }
 
-    private handleCardPointerUp(card: CardHandCard, event: PointerEvent) {
+    private handleCardPointerUp(card: InternalCard, event: PointerEvent) {
         if (event.pointerType === 'touch') {
             this.cancelLongPress(event.pointerId)
             if (this.touchSelectionActive) {
@@ -608,14 +614,14 @@ export class CardHand {
     }
 
     private computeRangeIds(anchorId: string, targetId: string): string[] {
-        const startIndex = this.cards.findIndex((card) => card.id === anchorId)
-        const targetIndex = this.cards.findIndex((card) => card.id === targetId)
+        const startIndex = this.cards.findIndex((card) => card.instanceId === anchorId)
+        const targetIndex = this.cards.findIndex((card) => card.instanceId === targetId)
         if (startIndex === -1 || targetIndex === -1) {
             return []
         }
 
         const [from, to] = startIndex < targetIndex ? [startIndex, targetIndex] : [targetIndex, startIndex]
-        return this.cards.slice(from, to + 1).map((card) => card.id)
+        return this.cards.slice(from, to + 1).map((card) => card.instanceId)
     }
 
     private updateLayout() {
@@ -723,7 +729,7 @@ export class CardHand {
         const center = scroll + this.viewport.clientWidth / 2
         const index = Math.round((center - this.cardWidth / 2) / pitch)
         const clamped = Math.max(0, Math.min(this.cards.length - 1, index))
-        return this.cards[clamped]?.id ?? null
+        return this.cards[clamped]?.instanceId ?? null
     }
 
     private nudge(direction: number) {
@@ -755,7 +761,7 @@ export class CardHand {
     }
 
     private scrollToCard(id: string) {
-        const index = this.cards.findIndex((card) => card.id === id)
+        const index = this.cards.findIndex((card) => card.instanceId === id)
         if (index === -1) {
             return
         }
@@ -764,6 +770,23 @@ export class CardHand {
         const offset = target - (this.viewport.clientWidth - this.cardWidth) / 2
         this.viewport.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' })
         this.scheduleSnap()
+    }
+
+    private prepareCard(card: CardHandCard): InternalCard {
+        const providedId = card.instanceId?.trim()
+        const instanceId = providedId && providedId.length > 0 ? providedId : this.generateInstanceId(card.id)
+        return { ...card, instanceId }
+    }
+
+    private generateInstanceId(baseId: string): string {
+        const normalized = baseId?.trim() ? baseId.trim() : 'card'
+        const counter = this.instanceIdCounter++
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return `${normalized}::${counter}::${crypto.randomUUID()}`
+        }
+        const randomPart = Math.random().toString(36).slice(2, 10)
+        const timestamp = Date.now().toString(36)
+        return `${normalized}::${counter}::${timestamp}${randomPart}`
     }
 
     private getCardIdUnderPointer(x: number, y: number): string | null {
@@ -977,7 +1000,7 @@ export class CardHand {
                 color: inherit;
                 font-family: inherit;
                 display: grid;
-                grid-template-rows: 1fr auto auto auto;
+                grid-template-rows: minmax(140px, 1fr) auto 1fr;
                 gap: 8px;
                 cursor: pointer;
                 box-shadow: 0 ${CARD_ELEVATION}px 24px rgba(15, 23, 42, 0.35);
@@ -1035,22 +1058,39 @@ export class CardHand {
                 white-space: nowrap;
             }
 
-            .card-hand-widget__stats {
+            .card-hand-widget__meta {
                 display: flex;
+                align-items: center;
                 justify-content: space-between;
-                font-size: 13px;
-                opacity: 0.9;
+                gap: 8px;
             }
 
-            .card-hand-widget__effect {
-                font-size: 12px;
-                line-height: 1.4;
-                opacity: 0.85;
+            .card-hand-widget__cost {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: rgba(59, 130, 246, 0.18);
+                border: 1px solid rgba(59, 130, 246, 0.3);
+                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.2);
+            }
+
+            .card-hand-widget__cost strong {
+                font-weight: 700;
+            }
+
+            .card-hand-widget__description {
+                font-size: 13px;
+                line-height: 1.45;
+                opacity: 0.88;
+                text-align: left;
                 display: -webkit-box;
-                -webkit-line-clamp: 3;
+                -webkit-line-clamp: 4;
                 -webkit-box-orient: vertical;
                 overflow: hidden;
-                text-align: left;
             }
 
             .card-hand-widget__shade {

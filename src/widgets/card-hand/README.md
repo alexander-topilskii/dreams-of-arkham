@@ -8,6 +8,8 @@
 - Поддержка одиночного и множественного выбора: клик, `Shift`, `Ctrl/Cmd`, рамка выделения, долгий тап + свайп.
 - Анимации появления/удаления карт, hover-эффекты, золотое подсвечивание выбранных карт.
 - События `onSelectionChange` и `onViewportChange` для синхронизации с родительскими модулями.
+- Служебное поле `effect` скрыто от игрока; в карточке отображаются название, стоимость (`cost`) и описание.
+- Поддерживает колоды с дублирующимися картами одного типа благодаря авто-генерируемым `instanceId`.
 
 ## API
 ```ts
@@ -25,17 +27,18 @@ new CardHand(root?: HTMLElement | null, options?: {
 type CardHandCard = {
     id: string
     title: string
-    power: number
-    health: number
-    effect?: string
+    description: string
+    cost: number
+    effect: 'move' | 'attack' | 'hide' | 'search'
     artUrl?: string
+    instanceId?: string
 }
 ```
 
 ### Методы
-- `setCards(cards)` — полная перерисовка колоды.
+- `setCards(cards)` — полная перерисовка колоды (возвращаемые `id` в событиях соответствуют `instanceId`).
 - `addCard(card)` — анимированное добавление в конец и автоцентрирование.
-- `removeCard(id)` — анимация вылета и пересчёт выделения.
+- `removeCard(id)` — анимация вылета и пересчёт выделения (принимает `instanceId`).
 - `destroy()` — снимает события и очищает/удаляет корень.
 
 ## Использование

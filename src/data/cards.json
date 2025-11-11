@@ -1,49 +1,44 @@
 {
   "initialHand": [
     {
-      "id": "mystic-vision",
-      "title": "Мистическое видение",
-      "description": "Проясняет судьбу и открывает скрытые подсказки.",
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 2,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Та же дорожка, но теперь вы примечаете новые ориентиры.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 2,
+      "effect": "move"
+    },
+    {
+      "id": "scout-path",
+      "title": "Разведать путь",
+      "description": "Аккуратно продвигаетесь вперёд, выбирая более безопасную траекторию.",
       "image": "/images/cards/mystic-vision.svg",
-      "power": 2,
-      "health": 3,
-      "effect": "Когда разыгрывается, позволяет открыть дополнительную карту событий."
+      "cost": 2,
+      "effect": "move"
     },
     {
-      "id": "innsmouth-clues",
-      "title": "Улики улицы Инсмут",
-      "description": "Следы культистов ведут по затопленным улочкам.",
+      "id": "swift-step",
+      "title": "Быстрый шаг",
+      "description": "Собираетесь с духом и ускоряете продвижение, пока враги не видят.",
       "image": "/images/cards/innsmouth-clues.svg",
-      "power": 3,
-      "health": 2,
-      "effect": "Если сыграть сразу две улицы, получите +1 к сбору улик."
+      "cost": 2,
+      "effect": "move"
     },
     {
-      "id": "enigmatic-key",
-      "title": "Загадочный ключ",
-      "description": "Открывает двери, которые лучше бы оставались закрытыми.",
-      "image": "/images/cards/enigmatic-key.svg",
-      "power": 1,
-      "health": 4,
-      "effect": "Можно потратить, чтобы пропустить проверку ловкости."
-    },
-    {
-      "id": "abyss-call",
-      "title": "Зов Бездны",
-      "description": "Соблазняет обещаниями силы, но требует осторожности.",
-      "image": "/images/cards/abyss-call.svg",
-      "power": 4,
-      "health": 1,
-      "effect": "При розыгрыше получите +2 силы, но увеличьте гибель на 1."
-    },
-    {
-      "id": "guardian-talisman",
-      "title": "Талисман хранителя",
-      "description": "Укрепляет волю и защищает от чуждых влияний.",
+      "id": "cautious-advance",
+      "title": "Осторожное продвижение",
+      "description": "Делаете маленькие шаги, чтобы не привлечь внимание глубинных тварей.",
       "image": "/images/cards/guardian-talisman.svg",
-      "power": 2,
-      "health": 5,
-      "effect": "Сбрасывается, чтобы отменить одно ранение."
+      "cost": 2,
+      "effect": "move"
     }
   ]
 }
