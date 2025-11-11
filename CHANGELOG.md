@@ -1,3 +1,4 @@
+[2025-11-11 19:07][CHANGE] Вынесена логика руки карт в CardHandController, обновлены main и отладочные кнопки для работы через контроллер.<br>
 [2025-11-11 19:05][CHANGE] Вынесена панель отладки в класс DebugPanel и обновлён main для использования виджета и новых контролов.<br>
 [2025-11-11 18:15][ADD FEATURE] Внедрён drag&drop для карт перемещения: золотая стрелка при перетаскивании, проверки GameEngine по действиям/смежности и журнальные подсказки вместо выбора карт.<br>
 [2025-11-11 18:04][FIX] Added a matching top offset and overflow scrolling to the game engine widget for cramped layouts.<br>
