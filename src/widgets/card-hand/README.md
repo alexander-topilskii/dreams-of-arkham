@@ -1,42 +1,18 @@
-# CardHand
+## CardHand
 
-Интерактивный виджет руки игрока с поддержкой drag&drop для карт перемещения.
+Колода активных карт игрока с поддержкой перетаскивания на карту экспедиции и контекстными действиями.
 
-## Возможности
-- Горизонтальная лента карточек с липким позиционированием и навигацией колесом, свайпами и стрелками.
-- Индикаторы переполнения (градиенты, стрелки, счетчик страниц) и автоматическое центрирование при малом количестве карт.
-- Золотое подсвечивание при наведении и мягкие анимации появления/исчезновения карт.
-- Перетаскивание карт с эффектом `move`: появляется направленная стрелка, карта «поднимается», падение вне допустимых целей подсвечивает ошибку и встряхивает карту.
-- Коллбэки `onMoveCardDrop`, `onMoveCardDropFailure`, `onMoveCardTargetMissing`, `onCardConsumed` и `onViewportChange` для синхронизации с игровым движком и другими модулями.
-- Кнопка «Закончить ход» с коллбэком `onEndTurn`, передающим управление игровому движку.
-- Поддержка дубликатов благодаря `instanceId`, который можно передать вручную или оставить автогенерацию.
-
-## API
+## Интерфейс карт
 ```ts
-new CardHand(root?: HTMLElement | null, options?: {
-    cards?: CardHandCard[];
-    height?: number;
-    cardWidth?: number;
-    gap?: number;
-    translucent?: boolean;
-    enableTouchInertia?: boolean;
-    onViewportChange?: (viewport: { start: number; end: number }) => void;
-    onMoveCardDrop?: (card: CardHandCard, territoryId: string) => CardHandDropResult | Promise<CardHandDropResult>;
-    onMoveCardDropFailure?: (card: CardHandCard, territoryId: string, message?: string) => void;
-    onMoveCardTargetMissing?: (card: CardHandCard) => void;
-    onCardConsumed?: (card: CardHandCard) => void;
-    onEndTurn?: () => void | Promise<void>;
-})
-
-type CardHandCard = {
+export type CardHandCard = {
     id: string;
     title: string;
-    description: string;
-    cost: number;
-    effect: 'move' | 'attack' | 'hide' | 'search';
+    description?: string;
     artUrl?: string;
+    cost: number;
+    effect?: string;
     instanceId?: string;
-}
+};
 
 type CardHandDropResult =
     | { status: 'success' }
@@ -45,49 +21,52 @@ type CardHandDropResult =
 
 ### Методы
 - `setCards(cards)` — полная перерисовка колоды (используйте `instanceId` для стабильного отображения).
-- `addCard(card)` — анимированное добавление в конец и автоматическое пролистывание к карте.
+- `addCard(card)` — анимированное добавление в конец и автопрокрутка к карте.
 - `removeCard(id)` — плавное удаление по `instanceId` с корректировкой ленты.
+- `focus()` — прокручивает панель к активной карте и подсвечивает контейнер.
 - `destroy()` — снимает события и очищает/удаляет корневой элемент.
 
 ## Использование
 ```ts
-import { CardHand, type CardHandCard, type CardHandDropResult } from './widgets/card-hand/card-hand';
+import { CardHand, type CardHandCard } from './widgets/card-hand/card-hand';
+import { CardHandController } from './widgets/card-hand/card-hand-controller';
+import { GameEngineWidget } from './widgets/game-engine/game-engine';
 import {
-    GameEngine,
+    GameEngineStore,
     MoveWithCardCommand,
     PostLogCommand,
-} from './widgets/game-engine/game-engine';
+    EndTurnCommand,
+} from './widgets/game-engine/game-engine-store';
 
-const engine = new GameEngine(...);
-const cards: CardHandCard[] = [...];
+const store = new GameEngineStore(engineConfig, { initialHand });
+const widget = new GameEngineWidget(document.getElementById('engine'), store);
+store.initialize();
+
+let controller: CardHandController;
 
 const hand = new CardHand(document.getElementById('hand'), {
-    cards,
-    onMoveCardDrop: (card, territoryId): CardHandDropResult => {
-        const events = engine.dispatch(
-            new MoveWithCardCommand({ id: card.id, title: card.title, cost: card.cost }, territoryId)
-        );
-        const failure = events.find((event) => event.type === 'move:failure');
-        return failure ? { status: 'error', message: failure.message } : { status: 'success' };
-    },
-    onMoveCardTargetMissing: (card) => {
-        engine.dispatch(new PostLogCommand('user', `Выберите локацию для «${card.title}».`));
-        engine.dispatch(new PostLogCommand('system', `move_hint:target_missing:${card.id}`));
-    },
-    onCardConsumed: (card) => removeFromInventory(card.instanceId),
+    onMoveCardDrop: (card, territoryId) => controller.onDrop(card, territoryId),
+    onMoveCardTargetMissing: (card) => controller.onDropTargetMissing(card),
+    onCardConsumed: (card) => controller.handleCardConsumed(card),
+    onEndTurn: () => controller.handleEndTurn(),
 });
 
-const unsubscribe = engine.subscribe((event) => {
+controller = new CardHandController({ cardHand: hand, store });
+controller.initialize();
+
+store.subscribe((event) => {
     if (event.type === 'turn:ended') {
         hand.focus();
     }
 });
 
-// ... позднее, при остановке UI
-unsubscribe();
+// Прямой вызов команд также возможен
+store.dispatch(new MoveWithCardCommand({ id: card.id, title: card.title, cost: card.cost }, 'street-2'));
+store.dispatch(new PostLogCommand('user', 'Выберите цель.'));
+store.dispatch(new EndTurnCommand());
 ```
 
-Для автоматического оверлея передайте `null` в конструктор. Функция `removeFromInventory` — условный пример, обновите ее под свою игровую логику.
+Для автоматического оверлея передайте `null` в конструктор. Настройте обработчики под свою игровую логику.
 
 ## Внешний вид
 Полупрозрачная панель с мягким свечением. При наведении карта подсвечивается золотом, а при перетаскивании появляется направляющая стрелка. Ошибочный сброс окрашивает карту в красный и сопровождается краткой тряской.

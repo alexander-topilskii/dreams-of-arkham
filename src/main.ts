@@ -21,7 +21,7 @@ import {
     type TerritoryConfig,
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
-import { GameEngine } from "./widgets/game-engine/game-engine";
+import { GameEngineWidget } from "./widgets/game-engine/game-engine";
 import { GameEngineStore } from "./widgets/game-engine/game-engine-store";
 import type { HandCardDefinition } from "./widgets/game-engine/game-engine-cards";
 
@@ -144,27 +144,31 @@ const eventDeckRoot = document.getElementById('right-top');
 const eventDeck = new EventDeck(eventDeckRoot, eventDeckConfig);
 
 const engineRoot = document.getElementById('right-bottom');
-const gameEngine = new GameEngine(engineRoot, {
-    player: {
-        id: characterId,
-        name: initialCharacterState.name,
-        image: portrait,
+const gameEngineStore = new GameEngineStore(
+    {
+        player: {
+            id: characterId,
+            name: initialCharacterState.name,
+            image: portrait,
+        },
+        map: expeditionMap,
+        mapConfig: expeditionMapConfig,
+        initialActions: initialCharacterState.actionPoints,
+        playerCount: 1,
+        eventDeck,
+        onActionsChange: (actions) => {
+            characterCard.setState({ actionPoints: actions })
+        },
     },
-    map: expeditionMap,
-    mapConfig: expeditionMapConfig,
-    initialActions: initialCharacterState.actionPoints,
-    playerCount: 1,
-    eventDeck,
-    onActionsChange: (actions) => {
-        characterCard.setState({ actionPoints: actions })
+    {
+        initialHand: cardsConfig.initialHand,
+        createDebugCard: () => createRandomCard(),
     },
-});
-gameEngine.initialize();
+);
 
-const gameEngineStore = new GameEngineStore(gameEngine, {
-    initialHand: cardsConfig.initialHand,
-    createDebugCard: () => createRandomCard(),
-});
+const gameEngineWidget = new GameEngineWidget(engineRoot, gameEngineStore);
+
+gameEngineStore.initialize();
 
 cardHandController = new CardHandController({ cardHand, store: gameEngineStore })
 cardHandController.initialize()
