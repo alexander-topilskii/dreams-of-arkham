@@ -27,13 +27,14 @@ GameEngineWidget & GameEngineStore
 
 ## Behavior
 ### GameEngineStore
-- Создаётся с `GameEngineConfig` (карта, игрок, колода событий, колбэк `onActionsChange`) и опциями руки (`initialHand`, фабрика
-  debug-карт).
+- Создаётся с `GameEngineConfig` (игрок, конфигурация карты, снимок колоды событий, счётчик игроков) и опциями руки
+  (`initialHand`, фабрика debug-карт).
 - `initialize()` вычисляет стартовую территорию и диспатчит `EnterLocationCommand`, уведомляя всех подписчиков.
 - `dispatch(command)` выполняет `GameCommand`/`GameEngineStoreCommand`, применяет каждое `GameEvent`, обновляет сторадж и уведомляет
   подписчиков свежим `GameViewModel`.
 - `subscribe(listener)` мгновенно отправляет `state:sync` с текущим вью-моделом и возвращает disposer.
-- Обрабатывает все обращения к `ExpeditionMap` и `EventDeck`, поэтому UI не зависит от побочных эффектов.
+- Формирует срезы `map` и `deck` во `viewModel` (открытые территории, размещённые персонажи, стопки событий); UI-адаптеры подписываются
+  на стор и синхронизируют `ExpeditionMap` и `EventDeck` с опубликованными данными.
 
 ### GameEngineWidget
 - В конструкторе монтирует стили (один раз на документ), создаёт DOM-структуру и подписывается на стор.
@@ -42,8 +43,9 @@ GameEngineWidget & GameEngineStore
 
 ### Emitted events
 - `log` — добавляет запись в пользовательский или системный журнал.
-- `actions:update` — обновляет очки действий и триггерит `onActionsChange`.
-- `location:*` / `player:place` — эффекты для Expedition Map (раскрытие, размещение, установка текущей локации).
+- `actions:update` — обновляет очки действий.
+- `location:*` / `player:place` — изменяют срез карты (раскрытие, размещение, установка текущей локации).
+- `eventDeck:*` — синхронизируют состояние колоды событий и сообщают об отладочных действиях.
 - `move:success` / `move:failure` — результат `MoveWithCardCommand` вместе с сообщением об ошибке.
 - `turn:ended` — сводка конца хода с восстановленными очками действий и количеством вытянутых событий.
 - `card:added` / `card:consumed` / `hand:sync` — синхронизация руки (используется `CardHandController`).
@@ -52,12 +54,10 @@ GameEngineWidget & GameEngineStore
 | Name | Type | Default | Description |
 |------|------|---------|-------------|
 | `player` | `GameEnginePlayerConfig` | — | ID, имя и визуальные атрибуты фишки игрока. |
-| `map` | `ExpeditionMap` | — | Экземпляр карты, на который стор накладывает эффекты событий. |
 | `mapConfig` | `ExpeditionMapConfig` | — | Исходные данные территорий; используются для поиска заголовков и связей. |
+| `initialDeckState` | `EventDeckState` | — | Начальный снимок колоды событий (стопка, раскрытые, сброс и сообщение статуса). |
 | `initialActions` | `number` | — | Стартовое количество действий. |
 | `playerCount` | `number` | `1` | Число следователей — определяет, сколько событий вытягивается в конце хода. |
-| `eventDeck` | `EventDeck` | — | Колода событий; стор безопасно обрабатывает отсутствие.
-| `onActionsChange` | `(actions: number) => void` | — | Колбэк, вызываемый при каждом `actions:update`. |
 | `initialHand` | `HandCardDefinition[]` | `[]` | (опция стора) Начальная рука игрока. |
 | `createDebugCard` | `() => HandCardDefinition \| undefined` | — | (опция стора) Фабрика отладочных карт. |
 | `initialize()` | `() => void` | — | Одноразовая инициализация (безопасно вызывать повторно). |
@@ -79,11 +79,12 @@ GameEngineWidget & GameEngineStore
 - **Нет территорий**: стор публикует `bootstrap: нет доступных территорий…` и оставляет заглушки в списках.
 
 ## Lifecycle
-1. Создайте `GameEngineStore`, передав карту, конфигурацию и зависимости.
-2. Создайте `GameEngineWidget`, передав DOM-узел и стор — он сразу подпишется и отрисует `state:sync`.
-3. Вызовите `store.initialize()` после того, как виджет и остальные слушатели готовы.
-4. Диспатчите команды (`MoveWithCardCommand`, `EndTurnCommand`, `PostLogCommand`, `AddDebugCardCommand`, …) через стор.
-5. При демонтаже вызовите `widget.destroy()` и disposer из `subscribe`, если он был сохранён.
+1. Создайте `GameEngineStore`, передав игрока, конфигурацию карты, снимок колоды событий и зависимости.
+2. Подключите адаптеры (`GameEngineMapAdapter`, `GameEngineEventDeckAdapter`), чтобы синхронизировать стор с виджетами карты и колоды.
+3. Создайте `GameEngineWidget`, передав DOM-узел и стор — он сразу подпишется и отрисует `state:sync`.
+4. Вызовите `store.initialize()` после того, как виджет и остальные слушатели готовы.
+5. Диспатчите команды (`MoveWithCardCommand`, `EndTurnCommand`, `PostLogCommand`, `AddDebugCardCommand`, …) через стор.
+6. При демонтаже вызовите `widget.destroy()`, disposer из `subscribe` и `destroy()` адаптеров, если они были сохранены.
 
 ## Integration Example
 ```ts
@@ -94,21 +95,32 @@ import {
     MoveWithCardCommand,
     PostLogCommand,
     EndTurnCommand,
+    type EventDeckState,
 } from './widgets/game-engine/game-engine-store';
+import { GameEngineMapAdapter } from './widgets/game-engine/game-engine-map-adapter';
+import { GameEngineEventDeckAdapter } from './widgets/game-engine/game-engine-event-deck-adapter';
 import { ExpeditionMap } from './widgets/expedition-map/expedition-map';
+import { EventDeck } from './widgets/event-deck/event-deck';
 
 const map = new ExpeditionMap(mapContainer, mapConfig);
+const deck = new EventDeck(deckContainer, deckConfig);
+const initialDeckState: EventDeckState = {
+    draw: deckConfig.draw,
+    drawPile: deckConfig.cards.slice(),
+    revealed: [],
+    discardPile: [],
+};
 const store = new GameEngineStore(
     {
         player,
-        map,
         mapConfig,
         initialActions: 3,
-        eventDeck,
-        onActionsChange: (actions) => characterCard.setState({ actionPoints: actions }),
+        initialDeckState,
     },
     { initialHand },
 );
+const mapAdapter = new GameEngineMapAdapter(store, map);
+const deckAdapter = new GameEngineEventDeckAdapter(store, deck);
 const widget = new GameEngineWidget(engineRoot, store);
 
 store.initialize();
@@ -128,6 +140,8 @@ store.dispatch(new PostLogCommand('system', 'manual-note:expedition'));
 store.dispatch(new EndTurnCommand());
 
 // Later
+mapAdapter.destroy();
+deckAdapter.destroy();
 unsubscribe();
 widget.destroy();
 ```

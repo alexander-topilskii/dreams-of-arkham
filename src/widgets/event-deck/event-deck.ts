@@ -14,6 +14,13 @@ export interface EventDeckConfig {
     cards: EventDeckCardConfig[];
 }
 
+export type EventDeckSnapshot = {
+    drawPile: readonly EventDeckCardConfig[];
+    revealed: readonly EventDeckCardConfig[];
+    discardPile: readonly EventDeckCardConfig[];
+    status?: { message: string; variant?: 'warn' | 'success' };
+};
+
 const STYLE_ID = 'event-deck-styles';
 
 function ensureStylesMounted() {
@@ -305,6 +312,8 @@ export class EventDeck {
 
     private discard: EventDeckCardConfig[] = [];
 
+    private readonly defaultStatus = 'Готово к вызову событий.';
+
     constructor(container: HTMLElement | null, config: EventDeckConfig) {
         if (!container) {
             throw new Error('EventDeck: container not found');
@@ -327,7 +336,7 @@ export class EventDeck {
 
         this.status = document.createElement('div');
         this.status.className = 'event-deck__status';
-        this.status.textContent = 'Готово к вызову событий.';
+        this.status.textContent = this.defaultStatus;
 
         header.append(title, this.status);
 
@@ -404,6 +413,24 @@ export class EventDeck {
         container.appendChild(this.root);
 
         this.updateDeckVisual();
+    }
+
+    public applySnapshot(snapshot: EventDeckSnapshot): void {
+        this.deck = snapshot.drawPile.map((card) => ({ ...card }));
+        this.revealed = snapshot.revealed.map((card) => ({ ...card }));
+        this.discard = snapshot.discardPile.map((card) => ({ ...card }));
+
+        this.updateDeckVisual();
+        this.renderRevealedCards();
+        this.updateRevealedHeader();
+        this.updateDiscard();
+
+        const status = snapshot.status;
+        if (status) {
+            this.setStatus(status.message, status.variant);
+        } else {
+            this.setStatus(this.defaultStatus);
+        }
     }
 
     triggerEvent() {
@@ -510,6 +537,25 @@ export class EventDeck {
             this.revealedPlaceholder.remove();
         }
 
+        const cardElement = this.createRevealedCardElement(card);
+        this.revealedList.appendChild(cardElement);
+    }
+
+    private renderRevealedCards() {
+        this.revealedList.innerHTML = '';
+
+        if (this.revealed.length === 0) {
+            this.revealedList.appendChild(this.revealedPlaceholder);
+            return;
+        }
+
+        this.revealed.forEach((card) => {
+            const cardElement = this.createRevealedCardElement(card);
+            this.revealedList.appendChild(cardElement);
+        });
+    }
+
+    private createRevealedCardElement(card: EventDeckCardConfig) {
         const cardElement = document.createElement('article');
         cardElement.className = 'event-card';
         cardElement.dataset.cardId = card.id;
@@ -535,11 +581,7 @@ export class EventDeck {
             cardElement.appendChild(flavor);
         }
 
-        cardElement.addEventListener('click', () => {
-            this.sendToDiscard(card.id);
-        });
-
-        this.revealedList.appendChild(cardElement);
+        return cardElement;
     }
 
     private sendToDiscard(cardId: string) {
@@ -605,7 +647,7 @@ export class EventDeck {
         });
     }
 
-    private setStatus(message: string, variant?: 'warn' | 'success') {
+    public setStatus(message: string, variant?: 'warn' | 'success') {
         this.status.textContent = message;
         if (variant) {
             this.status.dataset.variant = variant;
