@@ -170,4 +170,38 @@ canvas {
 }
 
 
+.debug-panel-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 2100;
+    padding: 8px 14px;
+    border-radius: 9999px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    background: rgba(15, 23, 42, 0.85);
+    color: #e2e8f0;
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.debug-panel-toggle:hover {
+    background: rgba(30, 41, 59, 0.95);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.45);
+}
+
+.debug-panel-toggle:focus-visible {
+    outline: 2px solid rgba(96, 165, 250, 0.8);
+    outline-offset: 2px;
+    transform: translateY(-1px);
+}
+
+.debug-panel-toggle:active {
+    transform: translateY(0);
+}
+
+
 
