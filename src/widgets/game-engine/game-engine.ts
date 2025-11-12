@@ -1,5 +1,6 @@
 import { EventDeck } from "../event-deck/event-deck";
 import { ExpeditionMap, type ExpeditionMapConfig, type TerritoryConfig } from "../expedition-map/expedition-map";
+import type { HandCardContent } from "./game-engine-cards";
 
 const STYLE_ID = "game-engine-widget-styles";
 
@@ -143,6 +144,7 @@ export type GameViewModel = {
     readonly actionsRemaining: number;
     readonly userLog: readonly string[];
     readonly systemLog: readonly string[];
+    readonly hand: readonly HandCardContent[];
 };
 
 export type GameEvent =
@@ -154,7 +156,10 @@ export type GameEvent =
     | { type: 'location:set'; locationId: string }
     | { type: 'move:success'; card: MoveCardDescriptor; from: string; to: string }
     | { type: 'move:failure'; card: MoveCardDescriptor; reason: MoveFailureReason; message: string }
-    | { type: 'turn:ended'; actionsRemaining: number; drawnEvents: number };
+    | { type: 'turn:ended'; actionsRemaining: number; drawnEvents: number }
+    | { type: 'card:added'; card: HandCardContent; reason?: 'draw' | 'debug' | 'manual' }
+    | { type: 'card:consumed'; card: HandCardContent; reason?: 'consume' | 'discard' | 'debug' }
+    | { type: 'hand:sync'; hand: readonly HandCardContent[] };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
@@ -361,6 +366,11 @@ export class GameEngine {
             case 'turn:ended': {
                 return;
             }
+            case 'card:added':
+            case 'card:consumed':
+            case 'hand:sync': {
+                return;
+            }
         }
     }
 
@@ -422,6 +432,7 @@ export class GameEngine {
             actionsRemaining: this.state.actionsRemaining,
             userLog: this.state.userLog,
             systemLog: this.state.systemLog,
+            hand: [],
         };
     }
 
