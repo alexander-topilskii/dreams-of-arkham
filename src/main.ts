@@ -22,7 +22,13 @@ import {
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
 import { GameEngineWidget } from "./widgets/game-engine/game-engine";
-import { GameEngineStore } from "./widgets/game-engine/game-engine-store";
+import {
+    GameEngineStore,
+    UpdateDefeatProgressCommand,
+    UpdateVictoryProgressCommand,
+    type GameProgressSlice,
+    type GameViewModel,
+} from "./widgets/game-engine/game-engine-store";
 import type { HandCardDefinition } from "./widgets/game-engine/game-engine-cards";
 
 type CardsConfig = {
@@ -174,25 +180,8 @@ cardHandController = new CardHandController({ cardHand, store: gameEngineStore }
 cardHandController.initialize()
 
 // -- game loop timelines
-const victoryProgress: VictoryProgress = {
-    collectedClues: 0,
-    ritualSegments: 0,
-    finalSeal: false,
-}
-
-const defeatProgress: DefeatProgress = {
-    doom: 0,
-    cultActivity: 0,
-    awakening: false,
-}
-
-const victoryPhases: GamePhase[] = rulesConfig.victory.map((chapter) =>
-    createPhase(chapter, victoryProgress)
-)
-
-const defeatPhases: GamePhase[] = rulesConfig.defeat.map((chapter) =>
-    createPhase(chapter, defeatProgress)
-)
+const victoryPhases: GamePhase[] = rulesConfig.victory.map((chapter) => createPhase(chapter));
+const defeatPhases: GamePhase[] = rulesConfig.defeat.map((chapter) => createPhase(chapter));
 
 const gameLoopRoot = document.getElementById('left-bottom');
 
@@ -201,11 +190,7 @@ const gameLoopPanel = new GameLoopPanel(gameLoopRoot, {
     defeatPhases,
 });
 
-gameLoopPanel.evaluate();
-
-const syncTimelines = () => {
-    gameLoopPanel.evaluate();
-};
+let latestViewModel: GameViewModel = gameEngineStore.getViewModel();
 
 const debugPanel = new DebugPanel(null, { title: 'Debug панель' });
 new DraggableContainer(debugPanel.element, {
@@ -213,53 +198,108 @@ new DraggableContainer(debugPanel.element, {
 });
 
 const victoryGroup = debugPanel.addGroup('Параметры победы');
-debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
-    get: () => victoryProgress.collectedClues,
+const victoryCluesControl = debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
+    get: () => readProgressNumber(latestViewModel.victoryProgress, 'collectedClues'),
     set: (value) => {
-        victoryProgress.collectedClues = value;
+        gameEngineStore.dispatch(new UpdateVictoryProgressCommand({ collectedClues: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
     min: 0,
-    onChange: syncTimelines,
 });
-debugPanel.addNumericControl(victoryGroup, 'Сегменты ритуала', {
-    get: () => victoryProgress.ritualSegments,
+const victorySegmentsControl = debugPanel.addNumericControl(victoryGroup, 'Сегменты ритуала', {
+    get: () => readProgressNumber(latestViewModel.victoryProgress, 'ritualSegments'),
     set: (value) => {
-        victoryProgress.ritualSegments = value;
+        gameEngineStore.dispatch(new UpdateVictoryProgressCommand({ ritualSegments: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
     min: 0,
-    onChange: syncTimelines,
 });
-debugPanel.addBooleanControl(victoryGroup, 'Финальная печать', {
-    get: () => victoryProgress.finalSeal,
+const finalSealControl = debugPanel.addBooleanControl(victoryGroup, 'Финальная печать', {
+    get: () => readProgressFlag(latestViewModel.victoryProgress, 'finalSeal'),
     set: (value) => {
-        victoryProgress.finalSeal = value;
+        gameEngineStore.dispatch(new UpdateVictoryProgressCommand({ finalSeal: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
-    onChange: syncTimelines,
 });
 
 const defeatGroup = debugPanel.addGroup('Параметры поражения');
-debugPanel.addNumericControl(defeatGroup, 'Очки гибели', {
-    get: () => defeatProgress.doom,
+const doomControl = debugPanel.addNumericControl(defeatGroup, 'Очки гибели', {
+    get: () => readProgressNumber(latestViewModel.defeatProgress, 'doom'),
     set: (value) => {
-        defeatProgress.doom = value;
+        gameEngineStore.dispatch(new UpdateDefeatProgressCommand({ doom: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
     min: 0,
-    onChange: syncTimelines,
 });
-debugPanel.addNumericControl(defeatGroup, 'Активность культа', {
-    get: () => defeatProgress.cultActivity,
+const cultActivityControl = debugPanel.addNumericControl(defeatGroup, 'Активность культа', {
+    get: () => readProgressNumber(latestViewModel.defeatProgress, 'cultActivity'),
     set: (value) => {
-        defeatProgress.cultActivity = value;
+        gameEngineStore.dispatch(new UpdateDefeatProgressCommand({ cultActivity: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
     min: 0,
-    onChange: syncTimelines,
 });
-debugPanel.addBooleanControl(defeatGroup, 'Пробуждение Древнего', {
-    get: () => defeatProgress.awakening,
+const awakeningControl = debugPanel.addBooleanControl(defeatGroup, 'Пробуждение Древнего', {
+    get: () => readProgressFlag(latestViewModel.defeatProgress, 'awakening'),
     set: (value) => {
-        defeatProgress.awakening = value;
+        gameEngineStore.dispatch(new UpdateDefeatProgressCommand({ awakening: value }));
+        latestViewModel = gameEngineStore.getViewModel();
     },
-    onChange: syncTimelines,
+});
+
+const victoryCluesValueEl = resolveValueElement(victoryCluesControl);
+const victorySegmentsValueEl = resolveValueElement(victorySegmentsControl);
+const finalSealValueEl = resolveValueElement(finalSealControl);
+const doomValueEl = resolveValueElement(doomControl);
+const cultActivityValueEl = resolveValueElement(cultActivityControl);
+const awakeningValueEl = resolveValueElement(awakeningControl);
+
+const updateProgressControls = () => {
+    if (victoryCluesValueEl) {
+        victoryCluesValueEl.textContent = String(
+            readProgressNumber(latestViewModel.victoryProgress, 'collectedClues'),
+        );
+    }
+
+    if (victorySegmentsValueEl) {
+        victorySegmentsValueEl.textContent = String(
+            readProgressNumber(latestViewModel.victoryProgress, 'ritualSegments'),
+        );
+    }
+
+    if (finalSealValueEl) {
+        finalSealValueEl.textContent = formatBoolean(
+            readProgressFlag(latestViewModel.victoryProgress, 'finalSeal'),
+        );
+    }
+
+    if (doomValueEl) {
+        doomValueEl.textContent = String(readProgressNumber(latestViewModel.defeatProgress, 'doom'));
+    }
+
+    if (cultActivityValueEl) {
+        cultActivityValueEl.textContent = String(
+            readProgressNumber(latestViewModel.defeatProgress, 'cultActivity'),
+        );
+    }
+
+    if (awakeningValueEl) {
+        awakeningValueEl.textContent = formatBoolean(
+            readProgressFlag(latestViewModel.defeatProgress, 'awakening'),
+        );
+    }
+};
+
+const synchronizeViewModel = (viewModel: GameViewModel) => {
+    latestViewModel = viewModel;
+    gameLoopPanel.updateProgress(viewModel.victoryProgress, viewModel.defeatProgress);
+    updateProgressControls();
+};
+
+synchronizeViewModel(latestViewModel);
+
+gameEngineStore.subscribe((_event, viewModel) => {
+    synchronizeViewModel(viewModel);
 });
 
 const cardsGroup = debugPanel.addGroup('Карты');
@@ -418,32 +458,55 @@ function createRandomMapCharacterToken(): ExpeditionMapCharacterConfig {
     }
 }
 
-function createPhase<Progress extends Record<string, number | boolean>>(
-    chapter: ChapterConfig<Extract<keyof Progress, string>>,
-    progress: Progress,
-): GamePhase {
+function readProgressNumber(slice: GameProgressSlice, key: string): number {
+    const value = slice[key];
+    return typeof value === 'number' ? value : 0;
+}
+
+function readProgressFlag(slice: GameProgressSlice, key: string): boolean {
+    return slice[key] === true;
+}
+
+function formatBoolean(value: boolean): string {
+    return value ? 'Да' : 'Нет';
+}
+
+function resolveValueElement(row: HTMLElement): HTMLSpanElement | null {
+    const element = row.children[2];
+    return element instanceof HTMLSpanElement ? element : null;
+}
+
+function createPhase<ProgressKey extends string>(chapter: ChapterConfig<ProgressKey>): GamePhase {
     const {title, description, image, requirement} = chapter;
 
     if (requirement.type === 'counter') {
-        const key = requirement.progressKey as keyof Progress;
+        const key = requirement.progressKey;
         return {
             title,
             description,
             image,
             statusLabel: requirement.label,
-            statusValue: () => `${Number(progress[key])} / ${requirement.target}`,
-            condition: () => Number(progress[key]) >= requirement.target,
+            statusValue: (progress) => {
+                const value = progress[key];
+                const numeric = typeof value === 'number' ? value : 0;
+                return `${numeric} / ${requirement.target}`;
+            },
+            condition: (progress) => {
+                const value = progress[key];
+                const numeric = typeof value === 'number' ? value : 0;
+                return numeric >= requirement.target;
+            },
         };
     }
 
-    const key = requirement.progressKey as keyof Progress;
+    const key = requirement.progressKey;
     return {
         title,
         description,
         image,
         statusLabel: requirement.label,
-        statusValue: () => (Boolean(progress[key]) ? 'Да' : 'Нет'),
-        condition: () => Boolean(progress[key]) === requirement.target,
+        statusValue: (progress) => formatBoolean(progress[key] === true),
+        condition: (progress) => Boolean(progress[key]) === requirement.target,
     };
 }
 
