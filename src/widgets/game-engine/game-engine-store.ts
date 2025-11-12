@@ -747,9 +747,30 @@ function drawCardsFromDeck(
         return { drawn: [], deck };
     }
 
-    const actual = Math.min(normalized, deck.drawPile.length);
-    const drawn = deck.drawPile.splice(0, actual);
-    deck.revealed = [...deck.revealed, ...drawn];
+    const drawn: EventDeckCardConfig[] = [];
+
+    for (let index = 0; index < normalized; index += 1) {
+        if (deck.drawPile.length === 0) {
+            if (deck.discardPile.length === 0) {
+                break;
+            }
+
+            const recycled = shuffleCards(deck.discardPile);
+            deck.drawPile = [...recycled];
+            deck.discardPile = [];
+        }
+
+        const card = deck.drawPile.shift();
+        if (!card) {
+            break;
+        }
+
+        drawn.push(card);
+    }
+
+    if (drawn.length > 0) {
+        deck.revealed = [...deck.revealed, ...drawn];
+    }
 
     return { drawn, deck };
 }
