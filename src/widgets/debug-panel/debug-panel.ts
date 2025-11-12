@@ -10,13 +10,13 @@ export type DebugNumericControlConfig = {
     min?: number;
     max?: number;
     step?: number;
-    onChange: () => void;
+    onChange?: () => void;
 };
 
 export type DebugBooleanControlConfig = {
     get: () => boolean;
     set: (value: boolean) => void;
-    onChange: () => void;
+    onChange?: () => void;
 };
 
 export class DebugPanel {
@@ -92,7 +92,7 @@ export class DebugPanel {
             const clamped = Math.min(max, Math.max(min, next));
             config.set(clamped);
             updateValue();
-            config.onChange();
+            config.onChange?.();
         };
 
         const decreaseBtn = createDebugButton("−", () => {
@@ -137,13 +137,13 @@ export class DebugPanel {
         const disableBtn = createDebugButton("−", () => {
             config.set(false);
             updateValue();
-            config.onChange();
+            config.onChange?.();
         });
 
         const enableBtn = createDebugButton("+", () => {
             config.set(true);
             updateValue();
-            config.onChange();
+            config.onChange?.();
         });
 
         const updateValue = () => {
