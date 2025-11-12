@@ -4,7 +4,7 @@ import {
     type ExpeditionMapConfig,
     type TerritoryConfig,
 } from "../expedition-map/expedition-map";
-import { type EventDeckCardConfig } from "../event-deck/event-deck";
+import { type EventDeckCardConfig, type EventDeckConfig } from "../event-deck/event-deck";
 import {
     generateCardInstanceId,
     type HandCardContent,
@@ -577,6 +577,21 @@ function cloneDeckState(state: EventDeckState): EventDeckState {
         discardPile: state.discardPile.map((card) => ({ ...card })),
         status: state.status ? { ...state.status } : undefined,
     };
+}
+
+export function createInitialDeckStateFromConfig(config: EventDeckConfig): EventDeckState {
+    const drawMin = Math.max(0, Math.floor(config.draw.min));
+    const drawMax = Math.max(drawMin, Math.floor(config.draw.max));
+
+    const initialState: EventDeckState = {
+        draw: { min: drawMin, max: drawMax },
+        drawPile: shuffleCards(config.cards),
+        revealed: [],
+        discardPile: [],
+        status: { message: "Готово к вызову событий." },
+    };
+
+    return cloneDeckState(initialState);
 }
 
 function drawCardsFromDeck(
