@@ -172,18 +172,17 @@ canvas {
 
 .debug-panel-toggle {
     position: fixed;
-    top: 16px;
-    left: 16px;
+    top: 2px;
+    left: 2px;
     z-index: 2100;
-    padding: 8px 14px;
+    padding: 4px 8px;
     border-radius: 9999px;
     border: 1px solid rgba(148, 163, 184, 0.4);
     background: rgba(15, 23, 42, 0.85);
     color: #e2e8f0;
     font-family: system-ui, sans-serif;
-    font-size: 12px;
+    font-size: 8px;
     letter-spacing: 0.05em;
-    text-transform: uppercase;
     cursor: pointer;
     transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
