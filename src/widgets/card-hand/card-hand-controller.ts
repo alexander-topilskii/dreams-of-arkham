@@ -2,16 +2,14 @@ import { CardHand, type CardHandCard, type CardHandDropResult } from "./card-han
 import {
     AddDebugCardCommand,
     ConsumeCardCommand,
-    GameEngineStore,
-    type GameEngineStoreViewModel,
-} from "../game-engine/game-engine-store";
-import {
     EndTurnCommand,
+    GameEngineStore,
     type GameEvent,
+    type GameViewModel,
     MoveWithCardCommand,
     PostLogCommand,
     type MoveCardDescriptor,
-} from "../game-engine/game-engine";
+} from "../game-engine/game-engine-store";
 import type { HandCardContent } from "../game-engine/game-engine-cards";
 
 export type CardHandControllerDependencies = {
@@ -78,7 +76,7 @@ export class CardHandController {
         this.unsubscribeFromStore?.();
     }
 
-    private readonly handleStoreEvent = (event: GameEvent, viewModel: GameEngineStoreViewModel): void => {
+    private readonly handleStoreEvent = (event: GameEvent, viewModel: GameViewModel): void => {
         switch (event.type) {
             case "state:sync":
                 this.syncHand(viewModel);
@@ -98,7 +96,7 @@ export class CardHandController {
         }
     };
 
-    private syncHand(viewModel: GameEngineStoreViewModel): void {
+    private syncHand(viewModel: GameViewModel): void {
         const cards = viewModel.hand.map((card) => this.toCardHandCard(card));
         this.cardHand.setCards(cards);
     }

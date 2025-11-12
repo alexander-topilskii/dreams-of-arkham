@@ -1,3 +1,4 @@
+[2025-11-12 05:15][CHANGE] Split GameEngine into headless GameEngineStore and pure GameEngineWidget, updated main wiring and documentation.<br>
 [2025-11-12 04:37][ADD FEATURE] Added headless GameEngineStore with card events and rewired CardHand to sync via store hand state.<br>
 [2025-02-14 12:00][CHANGE] Reworked GameEngine to emit events via commands and updated card hand controller integration.<br>
 [2025-11-12 04:05][CHANGE] Перенёс отладочную панель в плавающий контейнер с перетаскиванием на базе draggabilly.<br>
