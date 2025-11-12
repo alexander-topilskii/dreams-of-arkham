@@ -67,62 +67,21 @@ function ensureStylesMounted() {
             height: 100%;
             min-height: 0;
             overflow: hidden;
+            position: relative;
         }
 
         .event-deck__header {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 12px;
             text-align: left;
         }
 
-        .event-deck__controls {
+        .event-deck__title-row {
             display: flex;
-            gap: 8px;
+            align-items: center;
+            gap: 12px;
             flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .event-deck__controls button {
-            appearance: none;
-            border: none;
-            border-radius: 999px;
-            padding: 6px 14px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            cursor: pointer;
-            background: rgba(59, 130, 246, 0.18);
-            color: rgba(191, 219, 254, 0.95);
-            transition: background 120ms ease, transform 120ms ease;
-        }
-
-        .event-deck__controls button:hover {
-            background: rgba(96, 165, 250, 0.3);
-            transform: translateY(-1px);
-        }
-
-        .event-deck__controls button:active {
-            transform: translateY(0);
-        }
-
-        .event-deck__controls-input {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            color: rgba(226, 232, 240, 0.75);
-        }
-
-        .event-deck__controls-input input {
-            width: 56px;
-            padding: 4px 6px;
-            border-radius: 8px;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            background: rgba(15, 23, 42, 0.6);
-            color: rgba(226, 232, 240, 0.92);
-            font: inherit;
         }
 
         .event-deck__title {
@@ -133,118 +92,66 @@ function ensureStylesMounted() {
             color: rgba(226, 232, 240, 0.75);
         }
 
-        .event-deck__status {
-            font-size: 0.8rem;
-            color: rgba(226, 232, 240, 0.82);
-            min-height: 1.25em;
-        }
-
-        .event-deck__body {
-            display: flex;
-            gap: 16px;
-            min-height: 0;
-            align-items: flex-start;
-        }
-
-        .event-deck__content {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            flex: 1;
-            min-height: 0;
-            overflow-y: auto;
-            padding-right: 6px;
-            scrollbar-gutter: stable;
-        }
-
-        .event-deck__pile {
-            display: flex;
-            flex-direction: column;
+        .event-deck__chips {
+            margin-left: auto;
+            display: inline-flex;
             align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
-        .event-deck__pile-label {
+        .event-deck__chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(30, 41, 59, 0.6);
             font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: rgba(148, 163, 184, 0.9);
+            color: rgba(226, 232, 240, 0.85);
+            transition: opacity 160ms ease;
         }
 
-        .event-deck__stack {
-            position: relative;
-            width: 120px;
-            height: 168px;
+        .event-deck__chip-label {
+            font-weight: 500;
+            letter-spacing: 0.02em;
         }
 
-        .event-deck__back {
-            position: absolute;
-            inset: 0;
-            border-radius: 14px;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.85), rgba(14, 116, 144, 0.85));
-            border: 1px solid rgba(148, 163, 184, 0.45);
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.45);
-            transform-origin: center;
+        .event-deck__chip-value {
+            font-weight: 600;
+            color: #f8fafc;
         }
 
-        .event-deck__back:nth-child(1) { transform: translate(0, 0); }
-        .event-deck__back:nth-child(2) { transform: translate(4px, -4px); }
-        .event-deck__back:nth-child(3) { transform: translate(8px, -8px); }
-
-        .event-deck__stack[data-empty='true'] .event-deck__back {
-            opacity: 0;
+        .event-deck__chip--deck {
+            background: rgba(30, 64, 175, 0.45);
+            border-color: rgba(129, 161, 193, 0.4);
         }
 
-        .event-deck__stack-placeholder {
-            position: absolute;
-            inset: 0;
-            display: grid;
-            place-items: center;
-            border-radius: 14px;
-            border: 1px dashed rgba(148, 163, 184, 0.35);
-            color: rgba(148, 163, 184, 0.65);
-            font-size: 0.75rem;
-            background: rgba(15, 23, 42, 0.4);
-            transition: opacity 120ms ease;
-            opacity: 0;
+        .event-deck__chip--discard {
+            background: rgba(94, 51, 73, 0.55);
+            border-color: rgba(244, 114, 182, 0.35);
         }
 
-        .event-deck__stack[data-empty='true'] .event-deck__stack-placeholder {
-            opacity: 1;
-        }
-
-        .event-deck__counter {
-            font-size: 0.85rem;
-            color: rgba(226, 232, 240, 0.75);
-        }
-
-        .event-deck__revealed {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            flex: 1;
-            min-height: 0;
+        .event-deck__chip--empty {
+            opacity: 0.65;
         }
 
         .event-deck__section-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
             font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: rgba(148, 163, 184, 0.85);
         }
 
-        .event-deck__revealed-scroll {
+        .event-deck__content {
             flex: 1;
             min-height: 0;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 12px;
-            padding-right: 4px;
+            padding-right: 6px;
             scrollbar-gutter: stable;
         }
 
@@ -263,16 +170,8 @@ function ensureStylesMounted() {
             border: 1px solid rgba(94, 234, 212, 0.2);
             border-left: 4px solid rgba(94, 234, 212, 0.55);
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.4);
-            cursor: pointer;
-            transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
             text-align: left;
             position: relative;
-        }
-
-        .event-card:hover {
-            transform: translateX(2px);
-            border-color: rgba(94, 234, 212, 0.45);
-            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.5);
         }
 
         .event-card[data-state='in-play'] {
@@ -347,225 +246,109 @@ function ensureStylesMounted() {
             letter-spacing: 0.02em;
         }
 
-        .event-deck__discard {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            min-height: 96px;
-        }
-
-        .event-deck__discard-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            align-content: flex-start;
-        }
-
-        .event-deck__discard-card {
-            padding: 8px 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            background: rgba(30, 41, 59, 0.65);
-            color: rgba(226, 232, 240, 0.85);
-            font-size: 0.75rem;
-        }
-
-        .event-deck__empty-note {
-            font-size: 0.8rem;
-            color: rgba(148, 163, 184, 0.7);
-        }
-
-        .event-deck__status[data-variant='warn'] {
-            color: rgba(248, 113, 113, 0.85);
-        }
-
-        .event-deck__status[data-variant='success'] {
-            color: rgba(94, 234, 212, 0.85);
+        .event-deck__status-live {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            border: 0;
+            clip: rect(0 0 0 0);
+            clip-path: inset(50%);
+            overflow: hidden;
+            white-space: nowrap;
         }
     `;
 
     document.head.appendChild(style);
 }
 
+type ChipElements = {
+    element: HTMLDivElement;
+    value: HTMLSpanElement;
+};
+
 export class EventDeck {
     private readonly root: HTMLDivElement;
 
-    private readonly controls: HTMLDivElement;
+    private readonly chipsContainer: HTMLDivElement;
 
-    private readonly triggerButton: HTMLButtonElement;
+    private readonly deckChip: ChipElements;
 
-    private readonly revealInput: HTMLInputElement;
+    private readonly discardChip: ChipElements;
 
-    private readonly revealButton: HTMLButtonElement;
-
-    private readonly stack: HTMLDivElement;
-
-    private readonly stackPlaceholder: HTMLDivElement;
-
-    private readonly deckCounter: HTMLDivElement;
+    private readonly revealedHeader: HTMLDivElement;
 
     private readonly revealedList: HTMLDivElement;
 
     private readonly revealedPlaceholder: HTMLDivElement;
 
-    private readonly revealedHeader: HTMLDivElement;
+    private readonly liveRegion: HTMLDivElement;
 
-    private readonly discardGrid: HTMLDivElement;
-
-    private readonly discardPlaceholder: HTMLDivElement;
-
-    private readonly discardHeader: HTMLDivElement;
-
-    private readonly status: HTMLDivElement;
-
-    private readonly config: EventDeckConfig;
-
-    private deck: EventDeckCardConfig[];
+    private deck: EventDeckCardConfig[] = [];
 
     private revealed: EventDeckCardConfig[] = [];
 
     private discard: EventDeckCardConfig[] = [];
 
-    private readonly defaultStatus = 'Готово к вызову событий.';
+    private readonly defaultStatus = 'Колода событий готова.';
 
     private intentHandlers: EventDeckIntentHandlers = {};
 
-    constructor(container: HTMLElement | null, config: EventDeckConfig) {
+    constructor(container: HTMLElement | null, _config: EventDeckConfig) {
         if (!container) {
             throw new Error('EventDeck: container not found');
         }
 
         ensureStylesMounted();
 
-        this.config = normalizeConfig(config);
-        this.deck = [];
-
         this.root = document.createElement('div');
         this.root.className = 'event-deck';
 
-        const header = document.createElement('div');
+        const header = document.createElement('header');
         header.className = 'event-deck__header';
+
+        const titleRow = document.createElement('div');
+        titleRow.className = 'event-deck__title-row';
 
         const title = document.createElement('h2');
         title.className = 'event-deck__title';
         title.textContent = 'Колода событий';
 
-        this.status = document.createElement('div');
-        this.status.className = 'event-deck__status';
-        this.status.textContent = this.defaultStatus;
+        this.chipsContainer = document.createElement('div');
+        this.chipsContainer.className = 'event-deck__chips';
 
-        this.controls = document.createElement('div');
-        this.controls.className = 'event-deck__controls';
+        this.deckChip = this.createChip('Колода', 'deck');
+        this.discardChip = this.createChip('Сброс', 'discard');
 
-        this.triggerButton = document.createElement('button');
-        this.triggerButton.type = 'button';
-        this.triggerButton.textContent = 'Вызвать судьбу';
-        this.triggerButton.addEventListener('click', this.handleTriggerClick);
-
-        const drawBounds = this.getDrawBounds();
-
-        this.revealInput = document.createElement('input');
-        this.revealInput.type = 'number';
-        this.revealInput.min = String(drawBounds.min);
-        this.revealInput.max = String(drawBounds.max);
-        this.revealInput.step = '1';
-        this.revealInput.value = String(drawBounds.min);
-        this.revealInput.addEventListener('keydown', this.handleRevealInputKeyDown);
-
-        const revealControl = document.createElement('label');
-        revealControl.className = 'event-deck__controls-input';
-
-        const revealPrefix = document.createElement('span');
-        revealPrefix.textContent = 'Открыть';
-
-        const revealSuffix = document.createElement('span');
-        revealSuffix.textContent = 'карт';
-
-        revealControl.append(revealPrefix, this.revealInput, revealSuffix);
-
-        this.revealButton = document.createElement('button');
-        this.revealButton.type = 'button';
-        this.revealButton.textContent = 'Открыть события';
-        this.revealButton.addEventListener('click', this.handleRevealClick);
-
-        this.controls.append(this.triggerButton, revealControl, this.revealButton);
-
-        header.append(title, this.status, this.controls);
-
-        const body = document.createElement('div');
-        body.className = 'event-deck__body';
-
-        const pile = document.createElement('div');
-        pile.className = 'event-deck__pile';
-
-        const pileLabel = document.createElement('div');
-        pileLabel.className = 'event-deck__pile-label';
-        pileLabel.textContent = 'Стопка';
-
-        this.stack = document.createElement('div');
-        this.stack.className = 'event-deck__stack';
-
-        for (let i = 0; i < 3; i += 1) {
-            const back = document.createElement('div');
-            back.className = 'event-deck__back';
-            this.stack.appendChild(back);
-        }
-
-        this.stackPlaceholder = document.createElement('div');
-        this.stackPlaceholder.className = 'event-deck__stack-placeholder';
-        this.stackPlaceholder.textContent = 'Пусто';
-        this.stack.appendChild(this.stackPlaceholder);
-
-        this.deckCounter = document.createElement('div');
-        this.deckCounter.className = 'event-deck__counter';
-
-        pile.append(pileLabel, this.stack, this.deckCounter);
-
-        const revealed = document.createElement('div');
-        revealed.className = 'event-deck__revealed';
+        this.chipsContainer.append(this.deckChip.element, this.discardChip.element);
+        titleRow.append(title, this.chipsContainer);
 
         this.revealedHeader = document.createElement('div');
         this.revealedHeader.className = 'event-deck__section-title';
         this.revealedHeader.textContent = 'Активные события (0)';
 
+        header.append(titleRow, this.revealedHeader);
+
         this.revealedList = document.createElement('div');
-        this.revealedList.className = 'event-deck__revealed-scroll';
+        this.revealedList.className = 'event-deck__content';
 
         this.revealedPlaceholder = document.createElement('div');
         this.revealedPlaceholder.className = 'event-deck__placeholder';
-        this.revealedPlaceholder.textContent =
-            'Сейчас нет активных событий. Используйте кнопки сверху, чтобы вытянуть новые карты.';
-        this.revealedList.appendChild(this.revealedPlaceholder);
+        this.revealedPlaceholder.textContent = 'Нет активных событий.';
 
-        revealed.append(this.revealedHeader, this.revealedList);
+        this.liveRegion = document.createElement('div');
+        this.liveRegion.className = 'event-deck__status-live';
+        this.liveRegion.setAttribute('role', 'status');
+        this.liveRegion.setAttribute('aria-live', 'polite');
+        this.liveRegion.textContent = this.defaultStatus;
 
-        body.append(pile, revealed);
-
-        const discardSection = document.createElement('div');
-        discardSection.className = 'event-deck__discard';
-
-        this.discardHeader = document.createElement('div');
-        this.discardHeader.className = 'event-deck__section-title';
-        this.discardHeader.textContent = 'Сброс (0)';
-
-        this.discardGrid = document.createElement('div');
-        this.discardGrid.className = 'event-deck__discard-grid';
-
-        this.discardPlaceholder = document.createElement('div');
-        this.discardPlaceholder.className = 'event-deck__empty-note';
-        this.discardPlaceholder.textContent = 'Сброс пуст.';
-        this.discardGrid.appendChild(this.discardPlaceholder);
-
-        discardSection.append(this.discardHeader, this.discardGrid);
-
-        const content = document.createElement('div');
-        content.className = 'event-deck__content';
-        content.append(body, discardSection);
-
-        this.root.append(header, content);
+        this.root.append(header, this.revealedList, this.liveRegion);
         container.appendChild(this.root);
 
-        this.updateDeckVisual();
+        this.updateZoneChips();
+        this.renderRevealedCards();
+        this.updateRevealedHeader();
     }
 
     public applySnapshot(snapshot: EventDeckSnapshot): void {
@@ -573,10 +356,9 @@ export class EventDeck {
         this.revealed = snapshot.revealed.map((card) => ({ ...card }));
         this.discard = snapshot.discardPile.map((card) => ({ ...card }));
 
-        this.updateDeckVisual();
+        this.updateZoneChips();
         this.renderRevealedCards();
         this.updateRevealedHeader();
-        this.updateDiscard();
 
         const status = snapshot.status;
         if (status) {
@@ -586,19 +368,48 @@ export class EventDeck {
         }
     }
 
-    private resolveEventNoun(count: number): string {
-        const mod10 = count % 10;
-        const mod100 = count % 100;
+    public setIntentHandlers(handlers: EventDeckIntentHandlers = {}) {
+        this.intentHandlers = { ...handlers };
+    }
 
-        if (mod10 === 1 && mod100 !== 11) {
-            return 'событие';
+    public setStatus(message: string, _variant?: EventDeckStatusVariant) {
+        this.liveRegion.textContent = message;
+    }
+
+    private createChip(label: string, variant: 'deck' | 'discard'): ChipElements {
+        const element = document.createElement('div');
+        element.className = 'event-deck__chip';
+        element.classList.add(`event-deck__chip--${variant}`);
+
+        const labelElement = document.createElement('span');
+        labelElement.className = 'event-deck__chip-label';
+        labelElement.textContent = label;
+
+        const valueElement = document.createElement('span');
+        valueElement.className = 'event-deck__chip-value';
+        valueElement.textContent = '0';
+
+        element.append(labelElement, valueElement);
+
+        return { element, value: valueElement };
+    }
+
+    private updateZoneChips() {
+        this.updateChip(this.deckChip, this.deck.length);
+        this.updateChip(this.discardChip, this.discard.length);
+    }
+
+    private updateChip(chip: ChipElements, count: number) {
+        chip.value.textContent = String(count);
+        if (count === 0) {
+            chip.element.classList.add('event-deck__chip--empty');
+        } else {
+            chip.element.classList.remove('event-deck__chip--empty');
         }
+    }
 
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
-            return 'события';
-        }
-
-        return 'событий';
+    private updateRevealedHeader() {
+        this.revealedHeader.textContent = `Активные события (${this.revealed.length})`;
     }
 
     private renderRevealedCards() {
@@ -662,9 +473,6 @@ export class EventDeck {
             cardElement.appendChild(flavor);
         }
 
-        const instanceId = card.instanceId ?? card.id;
-        cardElement.addEventListener('click', () => this.handleDiscardRequest(instanceId));
-
         return cardElement;
     }
 
@@ -712,124 +520,4 @@ export class EventDeck {
 
         return meta;
     }
-
-    private updateDeckVisual() {
-        if (this.deck.length === 0) {
-            this.stack.dataset.empty = 'true';
-        } else {
-            this.stack.dataset.empty = 'false';
-        }
-
-        this.deckCounter.textContent = `${this.deck.length} карт`;
-    }
-
-    private updateRevealedPlaceholder() {
-        if (this.revealed.length === 0 && !this.revealedList.contains(this.revealedPlaceholder)) {
-            this.revealedList.appendChild(this.revealedPlaceholder);
-        }
-    }
-
-    private updateRevealedHeader() {
-        this.revealedHeader.textContent = `Активные события (${this.revealed.length})`;
-        if (this.revealed.length === 0) {
-            this.updateRevealedPlaceholder();
-        }
-    }
-
-    private updateDiscard() {
-        this.discardHeader.textContent = `Сброс (${this.discard.length})`;
-
-        if (this.discard.length === 0) {
-            if (!this.discardGrid.contains(this.discardPlaceholder)) {
-                this.discardGrid.appendChild(this.discardPlaceholder);
-            }
-            return;
-        }
-
-        this.discardGrid.innerHTML = '';
-        this.discard.forEach((card) => {
-            const chip = document.createElement('div');
-            chip.className = 'event-deck__discard-card';
-            chip.textContent = card.title;
-            this.discardGrid.appendChild(chip);
-        });
-    }
-
-    public setIntentHandlers(handlers: EventDeckIntentHandlers = {}) {
-        this.intentHandlers = { ...handlers };
-    }
-
-    public setStatus(message: string, variant?: EventDeckStatusVariant) {
-        this.status.textContent = message;
-        if (variant) {
-            this.status.dataset.variant = variant;
-        } else {
-            delete this.status.dataset.variant;
-        }
-    }
-
-    private readonly handleTriggerClick = () => {
-        this.intentHandlers.onTrigger?.();
-    };
-
-    private readonly handleRevealClick = () => {
-        const count = this.getRequestedRevealCount();
-        this.intentHandlers.onReveal?.(count);
-    };
-
-    private readonly handleRevealInputKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            this.handleRevealClick();
-        }
-    };
-
-    private handleDiscardRequest(cardInstanceId: string) {
-        if (!cardInstanceId) {
-            return;
-        }
-
-        this.intentHandlers.onDiscard?.(cardInstanceId);
-    }
-
-    private getRequestedRevealCount(): number {
-        const bounds = this.getDrawBounds();
-        const parsed = Number.parseInt(this.revealInput.value, 10);
-
-        if (!Number.isFinite(parsed)) {
-            return bounds.min;
-        }
-
-        if (parsed < bounds.min) {
-            return bounds.min;
-        }
-
-        if (parsed > bounds.max) {
-            return bounds.max;
-        }
-
-        return parsed;
-    }
-
-    private getDrawBounds(): { min: number; max: number } {
-        const rawMin = Number.isFinite(this.config.draw.min) ? this.config.draw.min : 0;
-        const min = Math.max(0, Math.floor(rawMin));
-        const rawMax = Number.isFinite(this.config.draw.max) ? this.config.draw.max : min;
-        const max = Math.max(min, Math.floor(rawMax));
-        return { min, max };
-    }
-}
-
-function normalizeConfig(config: EventDeckConfig): EventDeckConfig {
-    const safeMin = Number.isFinite(config.draw.min) ? config.draw.min : 0;
-    const safeMax = Number.isFinite(config.draw.max) ? config.draw.max : safeMin;
-    return {
-        draw: {
-            min: safeMin,
-            max: safeMax,
-        },
-        cards: config.cards.map((card) => ({
-            ...card,
-        })),
-    };
 }
