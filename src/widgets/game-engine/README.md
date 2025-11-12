@@ -101,7 +101,7 @@ import {
     TriggerEventDeckCommand,
     RevealEventsCommand,
     DiscardRevealedEventCommand,
-    type EventDeckState,
+    createInitialDeckStateFromConfig,
 } from './widgets/game-engine/game-engine-store';
 import { GameEngineMapAdapter } from './widgets/game-engine/game-engine-map-adapter';
 import { GameEngineEventDeckAdapter } from './widgets/game-engine/game-engine-event-deck-adapter';
@@ -110,12 +110,7 @@ import { EventDeck } from './widgets/event-deck/event-deck';
 
 const map = new ExpeditionMap(mapContainer, mapConfig);
 const deck = new EventDeck(deckContainer, deckConfig);
-const initialDeckState: EventDeckState = {
-    draw: deckConfig.draw,
-    drawPile: deckConfig.cards.slice(),
-    revealed: [],
-    discardPile: [],
-};
+const initialDeckState = createInitialDeckStateFromConfig(deckConfig);
 const store = new GameEngineStore(
     {
         player,

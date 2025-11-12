@@ -1,3 +1,4 @@
+[2025-11-12 10:55][CHANGE] Вынес создание стартового состояния колоды в helper движка и обновил примеры на его использование.<br>
 [2025-11-12 06:28][CHANGE] Перенастроена колода событий: UI публикует намерения, GameEngine обрабатывает команды и синхронизирует снапшоты.<br>
 [2025-11-12 09:05][CHANGE] Decoupled GameEngineStore from map/event deck widgets via adapters, deck snapshots, and expanded view model state.<br>
 [2025-11-12 07:30][ADD FEATURE] Routed debug map/event actions through GameEngine commands and facade to keep UI decoupled.<br>
