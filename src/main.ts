@@ -183,8 +183,8 @@ eventDeck.setIntentHandlers({
     onReveal: (count) => {
         gameEngineStore.dispatch(new RevealEventsCommand(count));
     },
-    onDiscard: (cardId) => {
-        gameEngineStore.dispatch(new DiscardRevealedEventCommand(cardId));
+    onDiscard: (cardInstanceId) => {
+        gameEngineStore.dispatch(new DiscardRevealedEventCommand(cardInstanceId));
     },
 });
 

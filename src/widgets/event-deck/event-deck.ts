@@ -1,9 +1,18 @@
+export type EventDeckCardType = 'enemy' | string;
+
 export interface EventDeckCardConfig {
     id: string;
     title: string;
     summary: string;
-    impact: string;
+    impact?: string;
     flavor?: string;
+    type?: EventDeckCardType;
+    enter?: 'random' | string;
+    instanceId?: string;
+    inPlay?: boolean;
+    linkedCharacterId?: string;
+    locationId?: string;
+    locationTitle?: string;
 }
 
 export interface EventDeckConfig {
@@ -14,17 +23,24 @@ export interface EventDeckConfig {
     cards: EventDeckCardConfig[];
 }
 
+export type EventDeckStatusVariant = 'warn' | 'success';
+
+export type EventDeckStatus = {
+    message: string;
+    variant?: EventDeckStatusVariant;
+};
+
 export type EventDeckSnapshot = {
     drawPile: readonly EventDeckCardConfig[];
     revealed: readonly EventDeckCardConfig[];
     discardPile: readonly EventDeckCardConfig[];
-    status?: { message: string; variant?: 'warn' | 'success' };
+    status?: EventDeckStatus;
 };
 
 export type EventDeckIntentHandlers = {
     onTrigger?: () => void;
     onReveal?: (count: number) => void;
-    onDiscard?: (cardId: string) => void;
+    onDiscard?: (cardInstanceId: string) => void;
 };
 
 const STYLE_ID = 'event-deck-styles';
@@ -250,12 +266,53 @@ function ensureStylesMounted() {
             cursor: pointer;
             transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
             text-align: left;
+            position: relative;
         }
 
         .event-card:hover {
             transform: translateX(2px);
             border-color: rgba(94, 234, 212, 0.45);
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.5);
+        }
+
+        .event-card[data-state='in-play'] {
+            border-color: rgba(248, 113, 113, 0.65);
+            border-left-color: rgba(248, 113, 113, 0.85);
+            box-shadow: 0 10px 28px rgba(127, 29, 29, 0.45);
+        }
+
+        .event-card__header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .event-card__badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .event-card__badge {
+            border-radius: 999px;
+            padding: 2px 8px;
+            font-size: 0.65rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: rgba(148, 163, 184, 0.22);
+            color: rgba(226, 232, 240, 0.86);
+            white-space: nowrap;
+        }
+
+        .event-card__badge[data-variant='enemy'] {
+            background: rgba(220, 38, 38, 0.32);
+            color: rgba(254, 226, 226, 0.95);
+        }
+
+        .event-card__badge[data-variant='state'] {
+            background: rgba(248, 113, 113, 0.28);
+            color: rgba(254, 226, 226, 0.95);
         }
 
         .event-card__title {
@@ -281,6 +338,13 @@ function ensureStylesMounted() {
         .event-card__flavor {
             font-style: italic;
             color: rgba(148, 163, 184, 0.8);
+        }
+
+        .event-card__meta {
+            margin: 0;
+            font-size: 0.75rem;
+            color: rgba(148, 163, 184, 0.78);
+            letter-spacing: 0.02em;
         }
 
         .event-deck__discard {
@@ -555,20 +619,41 @@ export class EventDeck {
         const cardElement = document.createElement('article');
         cardElement.className = 'event-card';
         cardElement.dataset.cardId = card.id;
+        if (card.instanceId) {
+            cardElement.dataset.cardInstanceId = card.instanceId;
+        }
+        if (card.inPlay) {
+            cardElement.dataset.state = 'in-play';
+        }
+
+        const header = document.createElement('header');
+        header.className = 'event-card__header';
 
         const title = document.createElement('h3');
         title.className = 'event-card__title';
         title.textContent = card.title;
+        header.appendChild(title);
+
+        const badges = this.createCardBadges(card);
+        if (badges) {
+            header.appendChild(badges);
+        }
 
         const summary = document.createElement('p');
         summary.className = 'event-card__summary';
         summary.textContent = card.summary;
 
-        const impact = document.createElement('p');
-        impact.className = 'event-card__impact';
-        impact.textContent = card.impact;
+        cardElement.append(header, summary);
 
-        cardElement.append(title, summary, impact);
+        if (card.impact) {
+            const impact = document.createElement('p');
+            impact.className = 'event-card__impact';
+            impact.textContent = card.impact;
+            cardElement.appendChild(impact);
+        }
+
+        const metaEntries = this.createCardMeta(card);
+        metaEntries.forEach((entry) => cardElement.appendChild(entry));
 
         if (card.flavor) {
             const flavor = document.createElement('p');
@@ -577,9 +662,55 @@ export class EventDeck {
             cardElement.appendChild(flavor);
         }
 
-        cardElement.addEventListener('click', () => this.handleDiscardRequest(card.id));
+        const instanceId = card.instanceId ?? card.id;
+        cardElement.addEventListener('click', () => this.handleDiscardRequest(instanceId));
 
         return cardElement;
+    }
+
+    private createCardBadges(card: EventDeckCardConfig): HTMLDivElement | null {
+        const badges = document.createElement('div');
+        badges.className = 'event-card__badges';
+
+        if (card.type === 'enemy') {
+            const badge = document.createElement('span');
+            badge.className = 'event-card__badge';
+            badge.dataset.variant = 'enemy';
+            badge.textContent = 'Враг';
+            badges.appendChild(badge);
+        }
+
+        if (card.inPlay) {
+            const stateBadge = document.createElement('span');
+            stateBadge.className = 'event-card__badge';
+            stateBadge.dataset.variant = 'state';
+            stateBadge.textContent = 'В игре';
+            badges.appendChild(stateBadge);
+        }
+
+        return badges.childElementCount > 0 ? badges : null;
+    }
+
+    private createCardMeta(card: EventDeckCardConfig): HTMLParagraphElement[] {
+        const meta: HTMLParagraphElement[] = [];
+
+        if (card.locationTitle) {
+            const location = document.createElement('p');
+            location.className = 'event-card__meta';
+            location.textContent = `Локация: ${card.locationTitle}`;
+            meta.push(location);
+        } else if (card.enter) {
+            const enter = document.createElement('p');
+            enter.className = 'event-card__meta';
+            if (card.enter === 'random') {
+                enter.textContent = 'Появление: случайная локация';
+            } else {
+                enter.textContent = `Появление: ${card.enter}`;
+            }
+            meta.push(enter);
+        }
+
+        return meta;
     }
 
     private updateDeckVisual() {
@@ -628,7 +759,7 @@ export class EventDeck {
         this.intentHandlers = { ...handlers };
     }
 
-    public setStatus(message: string, variant?: 'warn' | 'success') {
+    public setStatus(message: string, variant?: EventDeckStatusVariant) {
         this.status.textContent = message;
         if (variant) {
             this.status.dataset.variant = variant;
@@ -653,12 +784,12 @@ export class EventDeck {
         }
     };
 
-    private handleDiscardRequest(cardId: string) {
-        if (!cardId) {
+    private handleDiscardRequest(cardInstanceId: string) {
+        if (!cardInstanceId) {
             return;
         }
 
-        this.intentHandlers.onDiscard?.(cardId);
+        this.intentHandlers.onDiscard?.(cardInstanceId);
     }
 
     private getRequestedRevealCount(): number {
