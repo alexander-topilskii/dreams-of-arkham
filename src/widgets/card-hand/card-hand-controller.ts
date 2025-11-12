@@ -1,6 +1,14 @@
 import { CardHand, type CardHandCard, type CardHandDropResult } from './card-hand'
 import type { CardEffect } from './card-hand'
-import type { GameEngine, MoveAttemptResult, MoveCardDescriptor } from '../game-engine/game-engine'
+import {
+    EndTurnCommand,
+    type GameEngine,
+    type GameEvent,
+    type GameViewModel,
+    MoveWithCardCommand,
+    PostLogCommand,
+    type MoveCardDescriptor,
+} from '../game-engine/game-engine'
 
 export type HandCardDefinition = {
     id: string
@@ -38,12 +46,15 @@ export class CardHandController {
     private readonly createDebugCard?: () => HandCardContent
 
     private readonly handCards: HandCardContent[]
+    private readonly unsubscribeFromEngine?: () => void
+    private lastDropResult?: CardHandDropResult
 
     constructor(dependencies: CardHandControllerDependencies, options: CardHandControllerOptions) {
         this.gameEngine = dependencies.gameEngine
         this.cardHand = dependencies.cardHand
         this.createDebugCard = options.createDebugCard
         this.handCards = options.initialCards.map((card) => this.createCardContent(card))
+        this.unsubscribeFromEngine = this.gameEngine.subscribe(this.handleEngineEvent)
     }
 
     initialize(): void {
@@ -65,22 +76,22 @@ export class CardHandController {
             title: card.title,
             cost: card.cost,
         }
-        const result: MoveAttemptResult = this.gameEngine.attemptMoveWithCard(descriptor, territoryId)
-        if (result.success) {
-            return { status: 'success' }
-        }
-        return { status: 'error', message: result.message }
+        this.lastDropResult = undefined
+        this.gameEngine.dispatch(new MoveWithCardCommand(descriptor, territoryId))
+        const result: CardHandDropResult =
+            this.lastDropResult ?? { status: 'error', message: 'Не удалось выполнить перемещение.' }
+        this.lastDropResult = undefined
+        return result
     }
 
     onDropFailure(_card: CardHandCard, _territoryId: string, _message?: string): void {
-        // Game engine already logs and re-renders failure outcomes inside attemptMoveWithCard.
+        // Outcome handling now arrives through engine events — nothing additional is required here.
     }
 
     onDropTargetMissing(card: CardHandCard): void {
         const prompt = `Выберите локацию для «${card.title}».`
-        this.gameEngine.logUserMessage(prompt)
-        this.gameEngine.logSystemMessage(`move_hint:target_missing:${card.id}`)
-        this.gameEngine.refresh()
+        this.gameEngine.dispatch(new PostLogCommand('user', prompt))
+        this.gameEngine.dispatch(new PostLogCommand('system', `move_hint:target_missing:${card.id}`))
     }
 
     handleCardConsumed(card: CardHandCard): void {
@@ -94,7 +105,19 @@ export class CardHandController {
     }
 
     handleEndTurn(): void {
-        this.gameEngine.endTurn()
+        this.gameEngine.dispatch(new EndTurnCommand())
+    }
+
+    private readonly handleEngineEvent = (event: GameEvent, _viewModel: GameViewModel): void => {
+        if (event.type === 'move:success') {
+            this.lastDropResult = { status: 'success' }
+        } else if (event.type === 'move:failure') {
+            this.lastDropResult = { status: 'error', message: event.message }
+        }
+    }
+
+    destroy(): void {
+        this.unsubscribeFromEngine?.()
     }
 
     private createCardContent(card: HandCardDefinition): HandCardContent {

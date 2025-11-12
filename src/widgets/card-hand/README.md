@@ -52,7 +52,11 @@ type CardHandDropResult =
 ## Использование
 ```ts
 import { CardHand, type CardHandCard, type CardHandDropResult } from './widgets/card-hand/card-hand';
-import { GameEngine } from './widgets/game-engine/game-engine';
+import {
+    GameEngine,
+    MoveWithCardCommand,
+    PostLogCommand,
+} from './widgets/game-engine/game-engine';
 
 const engine = new GameEngine(...);
 const cards: CardHandCard[] = [...];
@@ -60,12 +64,27 @@ const cards: CardHandCard[] = [...];
 const hand = new CardHand(document.getElementById('hand'), {
     cards,
     onMoveCardDrop: (card, territoryId): CardHandDropResult => {
-        const result = engine.attemptMoveWithCard({ id: card.id, title: card.title, cost: card.cost }, territoryId);
-        return result.success ? { status: 'success' } : { status: 'error', message: result.message };
+        const events = engine.dispatch(
+            new MoveWithCardCommand({ id: card.id, title: card.title, cost: card.cost }, territoryId)
+        );
+        const failure = events.find((event) => event.type === 'move:failure');
+        return failure ? { status: 'error', message: failure.message } : { status: 'success' };
     },
-    onMoveCardTargetMissing: (card) => engine.logUserMessage(`Выберите локацию для «${card.title}».`),
+    onMoveCardTargetMissing: (card) => {
+        engine.dispatch(new PostLogCommand('user', `Выберите локацию для «${card.title}».`));
+        engine.dispatch(new PostLogCommand('system', `move_hint:target_missing:${card.id}`));
+    },
     onCardConsumed: (card) => removeFromInventory(card.instanceId),
 });
+
+const unsubscribe = engine.subscribe((event) => {
+    if (event.type === 'turn:ended') {
+        hand.focus();
+    }
+});
+
+// ... позднее, при остановке UI
+unsubscribe();
 ```
 
 Для автоматического оверлея передайте `null` в конструктор. Функция `removeFromInventory` — условный пример, обновите ее под свою игровую логику.
