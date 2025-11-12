@@ -22,7 +22,8 @@ export class GameEngineEventDeckAdapter {
             case "state:sync":
             case "eventDeck:triggered":
             case "eventDeck:revealed":
-            case "eventDeck:reshuffled": {
+            case "eventDeck:reshuffled":
+            case "eventDeck:discarded": {
                 this.syncDeck(viewModel.deck);
                 break;
             }
