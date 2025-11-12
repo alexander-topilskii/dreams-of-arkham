@@ -44,6 +44,11 @@ export class GameEngineMapAdapter {
                 this.syncCharacters(viewModel.map.characterPlacements);
                 break;
             }
+            case "map:characterRemoved": {
+                this.map.removeCharacter(event.characterId);
+                this.syncCharacters(viewModel.map.characterPlacements);
+                break;
+            }
             default: {
                 break;
             }

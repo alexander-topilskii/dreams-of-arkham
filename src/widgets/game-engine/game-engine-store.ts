@@ -111,6 +111,7 @@ export type GameEvent =
     | { type: "progress:defeatUpdate"; progress: GameProgressSlice }
     | { type: "map:territoryAdded"; territory: TerritoryConfig }
     | { type: "map:characterPlaced"; territoryId: string; character: ExpeditionMapCharacterConfig }
+    | { type: "map:characterRemoved"; characterId: string }
     | { type: "eventDeck:triggered"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:revealed"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:reshuffled"; deck: EventDeckState }
@@ -366,6 +367,10 @@ export class GameEngineStore {
                 this.applyCharacterPlacement({ territoryId: event.territoryId, character: event.character });
                 break;
             }
+            case "map:characterRemoved": {
+                this.removeCharacterPlacement(event.characterId);
+                break;
+            }
             case "eventDeck:triggered":
             case "eventDeck:revealed":
             case "eventDeck:reshuffled":
@@ -493,6 +498,34 @@ export class GameEngineStore {
             configCharacters.push(normalized);
         }
         this.config.mapConfig.characters = configCharacters;
+    }
+
+    private removeCharacterPlacement(characterId: string): void {
+        const normalized = characterId?.trim();
+        if (!normalized) {
+            return;
+        }
+
+        const characters = this.state.map.characterPlacements.filter(
+            (entry) => entry.character.id !== normalized,
+        );
+
+        if (characters.length === this.state.map.characterPlacements.length) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            map: {
+                ...this.state.map,
+                characterPlacements: characters,
+            },
+        };
+
+        const configCharacters = this.config.mapConfig.characters ?? [];
+        this.config.mapConfig.characters = configCharacters.filter(
+            (entry) => entry.character.id !== normalized,
+        );
     }
 
     private applyDeckState(deck: EventDeckState): void {
@@ -669,13 +702,32 @@ function cloneDeckState(state: EventDeckState): EventDeckState {
     };
 }
 
+function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
+    return cards.map((card, index) => {
+        const baseId = card.id?.trim() ? card.id.trim() : `event-card-${index + 1}`;
+        const instanceId = card.instanceId?.trim() ?? generateCardInstanceId(`event-${baseId}`);
+        const prepared: EventDeckCardConfig = {
+            ...card,
+            id: baseId,
+            instanceId,
+            inPlay: false,
+        };
+        delete prepared.linkedCharacterId;
+        delete prepared.locationId;
+        delete prepared.locationTitle;
+        return prepared;
+    });
+}
+
 export function createInitialDeckStateFromConfig(config: EventDeckConfig): EventDeckState {
     const drawMin = Math.max(0, Math.floor(config.draw.min));
     const drawMax = Math.max(drawMin, Math.floor(config.draw.max));
 
+    const preparedCards = initializeDeckCards(config.cards);
+
     const initialState: EventDeckState = {
         draw: { min: drawMin, max: drawMax },
-        drawPile: shuffleCards(config.cards),
+        drawPile: shuffleCards(preparedCards),
         revealed: [],
         discardPile: [],
         status: { message: "Готово к вызову событий." },
@@ -700,6 +752,157 @@ function drawCardsFromDeck(
     deck.revealed = [...deck.revealed, ...drawn];
 
     return { drawn, deck };
+}
+
+function mergeEventDeckStatus(
+    primary: EventDeckStatus | undefined,
+    secondary: EventDeckStatus | undefined,
+): EventDeckStatus | undefined {
+    if (!primary) {
+        return secondary;
+    }
+
+    if (!secondary) {
+        return primary;
+    }
+
+    const parts = [primary.message, secondary.message].filter((part) => part && part.length > 0);
+    const message = parts.join(' ').trim();
+    const variant = secondary.variant ?? primary.variant;
+
+    return { message, variant };
+}
+
+function resolveDrawnEventCards(
+    cards: readonly EventDeckCardConfig[],
+    deck: EventDeckState,
+    context: GameEngineStoreContext,
+): { events: GameEvent[]; status?: EventDeckStatus } {
+    if (cards.length === 0) {
+        return { events: [] };
+    }
+
+    const aggregate = { events: [] as GameEvent[], status: undefined as EventDeckStatus | undefined };
+
+    for (const card of cards) {
+        const result = resolveEventCard(card, deck, context);
+        if (!result) {
+            continue;
+        }
+
+        if (result.events.length > 0) {
+            aggregate.events.push(...result.events);
+        }
+
+        aggregate.status = mergeEventDeckStatus(aggregate.status, result.status);
+    }
+
+    return aggregate;
+}
+
+function resolveEventCard(
+    card: EventDeckCardConfig,
+    _deck: EventDeckState,
+    context: GameEngineStoreContext,
+): { events: GameEvent[]; status?: EventDeckStatus } | undefined {
+    if (card.type === "enemy") {
+        return spawnEnemyFromCard(card, context);
+    }
+
+    return undefined;
+}
+
+function spawnEnemyFromCard(
+    card: EventDeckCardConfig,
+    context: GameEngineStoreContext,
+): { events: GameEvent[]; status?: EventDeckStatus } {
+    const territories = context.config.mapConfig.territories;
+
+    if (!territories || territories.length === 0) {
+        card.inPlay = false;
+        card.linkedCharacterId = undefined;
+        card.locationId = undefined;
+        card.locationTitle = undefined;
+        return {
+            events: [],
+            status: {
+                message: `«${card.title}» не может появиться — отсутствуют доступные локации на карте.`,
+                variant: "warn",
+            },
+        };
+    }
+
+    let territory: TerritoryConfig | undefined;
+
+    if (!card.enter || card.enter === "random") {
+        const index = Math.floor(Math.random() * territories.length);
+        territory = territories[index];
+    } else {
+        territory = territories.find((entry) => entry.id === card.enter);
+        if (!territory) {
+            return {
+                events: [],
+                status: {
+                    message: `«${card.title}» не может появиться: локация «${card.enter}» не найдена.`,
+                    variant: "warn",
+                },
+            };
+        }
+    }
+
+    if (!territory) {
+        return { events: [] };
+    }
+
+    const characterId = createEnemyTokenId(card);
+    card.inPlay = true;
+    card.linkedCharacterId = characterId;
+    card.locationId = territory.id;
+    card.locationTitle = territory.front.title;
+
+    const character: ExpeditionMapCharacterConfig = {
+        id: characterId,
+        label: card.title,
+        color: "#dc2626",
+        textColor: "#fef2f2",
+    };
+
+    const userMessage = `«${card.title}» появляется в ${territory.front.title}.`;
+    const events: GameEvent[] = [
+        { type: "map:characterPlaced", territoryId: territory.id, character },
+        { type: "log", channel: "user", message: userMessage },
+        {
+            type: "log",
+            channel: "system",
+            message: `event_deck:enemy_spawn:${card.id}:${characterId}:${territory.id}`,
+        },
+    ];
+
+    return {
+        events,
+        status: {
+            message: `«${card.title}» вступает в игру на ${territory.front.title}.`,
+            variant: "warn",
+        },
+    };
+}
+
+function sanitizeTokenSegment(value: string): string {
+    return value.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function createEnemyTokenId(card: EventDeckCardConfig): string {
+    const baseRaw = card.id?.trim() ? card.id.trim() : "enemy";
+    const base = sanitizeTokenSegment(baseRaw);
+
+    const instanceId = card.instanceId?.trim();
+    if (instanceId) {
+        const segment = sanitizeTokenSegment(instanceId);
+        return `${base}-${segment}`;
+    }
+
+    const randomPart = Math.random().toString(36).slice(2, 8);
+    return `${base}-${randomPart}`;
 }
 
 function createDeckEmptyStatus(state: EventDeckState): EventDeckStatus {
@@ -870,17 +1073,30 @@ export class EndTurnCommand extends BaseGameEngineStoreCommand {
             const drawnCards = result.drawn;
             drawn = drawnCards.length;
 
+            let status: EventDeckStatus | undefined;
+
             if (drawn === 0) {
                 events.push({ type: "log", channel: "system", message: "turn:end:event_deck:empty" });
                 events.push({ type: "log", channel: "user", message: "Новых событий не произошло." });
                 userMessageHandled = true;
-                result.deck.status = createDeckEmptyStatus(deckState);
+                status = createDeckEmptyStatus(deckState);
             } else {
                 const noun = resolveEventNoun(drawn);
-                result.deck.status = {
+                status = {
                     message: `Открыто ${drawn} ${noun}.`,
                     variant: "success",
                 };
+            }
+
+            const resolution = resolveDrawnEventCards(drawnCards, result.deck, context);
+            if (resolution.events.length > 0) {
+                events.push(...resolution.events);
+            }
+
+            status = mergeEventDeckStatus(status, resolution.status);
+
+            if (status) {
+                result.deck.status = status;
             }
 
             deckEvent = { type: "eventDeck:revealed", deck: result.deck, drawn: drawnCards };
@@ -1115,29 +1331,45 @@ export class RevealEventsCommand extends BaseGameEngineStoreCommand {
         }
 
         const result = drawCardsFromDeck(deckState, normalized);
+        let status: EventDeckStatus | undefined;
+
         if (result.drawn.length === 0) {
-            result.deck.status = createDeckEmptyStatus(deckState);
+            status = createDeckEmptyStatus(deckState);
         } else {
             const noun = resolveEventNoun(result.drawn.length);
-            result.deck.status = {
+            status = {
                 message: "Открыто " + result.drawn.length + " " + noun + ".",
                 variant: "success",
             };
         }
 
-        return [
+        const resolution = resolveDrawnEventCards(result.drawn, result.deck, context);
+        status = mergeEventDeckStatus(status, resolution.status);
+
+        if (status) {
+            result.deck.status = status;
+        }
+
+        const events: GameEvent[] = [];
+        if (resolution.events.length > 0) {
+            events.push(...resolution.events);
+        }
+
+        events.push(
             { type: "eventDeck:revealed", deck: result.deck, drawn: result.drawn },
             {
                 type: "log",
                 channel: "system",
                 message: "event_deck:revealed:" + result.drawn.length,
             },
-        ];
+        );
+
+        return events;
     }
 }
 
 export class DiscardRevealedEventCommand extends BaseGameEngineStoreCommand {
-    constructor(private readonly cardId: string) {
+    constructor(private readonly cardInstanceId: string) {
         super();
     }
 
@@ -1149,7 +1381,7 @@ export class DiscardRevealedEventCommand extends BaseGameEngineStoreCommand {
             ];
         }
 
-        const normalizedId = this.cardId.trim();
+        const normalizedId = this.cardInstanceId.trim();
         if (!normalizedId) {
             return [
                 { type: "log", channel: "system", message: "event_deck:discard:invalid_id" },
@@ -1157,7 +1389,10 @@ export class DiscardRevealedEventCommand extends BaseGameEngineStoreCommand {
         }
 
         const snapshot = cloneDeckState(deckState);
-        const index = snapshot.revealed.findIndex((card) => card.id === normalizedId);
+        const index = snapshot.revealed.findIndex((card) => {
+            const instanceId = card.instanceId ?? card.id;
+            return instanceId === normalizedId;
+        });
         if (index === -1) {
             return [
                 {
@@ -1168,26 +1403,59 @@ export class DiscardRevealedEventCommand extends BaseGameEngineStoreCommand {
             ];
         }
 
-        const removed = snapshot.revealed.splice(index, 1);
-        const [card] = removed;
+        const card = snapshot.revealed[index];
         if (!card) {
             return [
                 { type: "log", channel: "system", message: "event_deck:discard:empty_result" },
             ];
         }
-        snapshot.discardPile = [...snapshot.discardPile, card];
-        snapshot.status = {
-            message: "Событие «" + card.title + "» отправлено в сброс.",
+
+        if (card.inPlay) {
+            const warning = `«${card.title}» остаётся в игре — сперва устраните угрозу на карте.`;
+            snapshot.status = { message: warning, variant: "warn" };
+            return [
+                { type: "eventDeck:revealed", deck: snapshot, drawn: [] },
+                { type: "log", channel: "user", message: warning },
+                {
+                    type: "log",
+                    channel: "system",
+                    message: "event_deck:discard:blocked:" + normalizedId,
+                },
+            ];
+        }
+
+        const removed = snapshot.revealed.splice(index, 1);
+        const [removedCard] = removed;
+        const linkedCharacterId = removedCard?.linkedCharacterId?.trim();
+
+        const movedCard: EventDeckCardConfig = {
+            ...removedCard,
+            inPlay: false,
+            linkedCharacterId: undefined,
+            locationId: undefined,
+            locationTitle: undefined,
         };
 
-        return [
+        snapshot.discardPile = [...snapshot.discardPile, movedCard];
+        snapshot.status = {
+            message: "Событие «" + movedCard.title + "» отправлено в сброс.",
+        };
+
+        const events: GameEvent[] = [];
+        if (linkedCharacterId) {
+            events.push({ type: "map:characterRemoved", characterId: linkedCharacterId });
+        }
+
+        events.push(
             { type: "eventDeck:discarded", deck: snapshot, cardId: normalizedId },
             {
                 type: "log",
                 channel: "system",
                 message: "event_deck:discarded:" + normalizedId,
             },
-        ];
+        );
+
+        return events;
     }
 }
 
@@ -1219,19 +1487,35 @@ export class TriggerEventDeckCommand extends BaseGameEngineStoreCommand {
         }
 
         const result = drawCardsFromDeck(deckState, drawCount);
+        let status: EventDeckStatus | undefined;
+
         if (result.drawn.length === 0) {
-            result.deck.status = createDeckEmptyStatus(deckState);
+            status = createDeckEmptyStatus(deckState);
         } else {
-            result.deck.status = {
+            status = {
                 message: `Открыто новых событий: ${result.drawn.length}.`,
                 variant: "success",
             };
         }
 
-        return [
+        const resolution = resolveDrawnEventCards(result.drawn, result.deck, context);
+        status = mergeEventDeckStatus(status, resolution.status);
+
+        if (status) {
+            result.deck.status = status;
+        }
+
+        const events: GameEvent[] = [];
+        if (resolution.events.length > 0) {
+            events.push(...resolution.events);
+        }
+
+        events.push(
             { type: "eventDeck:triggered", deck: result.deck, drawn: result.drawn },
             { type: "log", channel: "system", message: "event_deck:triggered" },
-        ];
+        );
+
+        return events;
     }
 }
 
