@@ -2,12 +2,7 @@ import './style.css'
 import { createDraggabilly } from "./widgets/draggeble-utils/draggeble-utils";
 import { MovablePanels } from "./widgets/movable-panels/movable-panels";
 import { CardHand, type CardEffect } from "./widgets/card-hand/card-hand";
-import {
-    CardHandController,
-    generateCardInstanceId,
-    type HandCardContent,
-    type HandCardDefinition,
-} from "./widgets/card-hand/card-hand-controller";
+import { CardHandController } from "./widgets/card-hand/card-hand-controller";
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import { DebugPanel } from "./widgets/debug-panel/debug-panel";
@@ -27,6 +22,8 @@ import {
     type TerritoryConnectionType,
 } from "./widgets/expedition-map/expedition-map";
 import { GameEngine } from "./widgets/game-engine/game-engine";
+import { GameEngineStore } from "./widgets/game-engine/game-engine-store";
+import type { HandCardDefinition } from "./widgets/game-engine/game-engine-cards";
 
 type CardsConfig = {
     initialHand: HandCardDefinition[];
@@ -164,13 +161,12 @@ const gameEngine = new GameEngine(engineRoot, {
 });
 gameEngine.initialize();
 
-cardHandController = new CardHandController(
-    { cardHand, gameEngine },
-    {
-        initialCards: cardsConfig.initialHand,
-        createDebugCard: () => createRandomCard(generateCardInstanceId),
-    },
-)
+const gameEngineStore = new GameEngineStore(gameEngine, {
+    initialHand: cardsConfig.initialHand,
+    createDebugCard: () => createRandomCard(),
+});
+
+cardHandController = new CardHandController({ cardHand, store: gameEngineStore })
 cardHandController.initialize()
 
 // -- game loop timelines
@@ -302,9 +298,7 @@ const reshuffleEventsButton = createDebugButton('Перемешать сброс
 });
 eventsGroup.append(triggerEventButton, reshuffleEventsButton);
 
-function createRandomCard(
-    generateInstanceId: (baseId: string) => string = generateCardInstanceId,
-): HandCardContent {
+function createRandomCard(): HandCardDefinition {
     const seed = Math.floor(Math.random() * 1000)
     const id = `debug-${Date.now()}-${seed}`
     const palette = ['#1d4ed8', '#0ea5e9', '#22c55e', '#6366f1', '#f97316', '#ec4899']
@@ -332,7 +326,6 @@ function createRandomCard(
         image,
         cost: 1 + (seed % 4),
         effect: effects[seed % effects.length],
-        instanceId: generateInstanceId(id),
     }
 }
 

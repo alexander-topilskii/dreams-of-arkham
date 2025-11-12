@@ -1,3 +1,4 @@
+[2025-11-12 04:37][ADD FEATURE] Added headless GameEngineStore with card events and rewired CardHand to sync via store hand state.<br>
 [2025-02-14 12:00][CHANGE] Reworked GameEngine to emit events via commands and updated card hand controller integration.<br>
 [2025-11-12 04:05][CHANGE] Перенёс отладочную панель в плавающий контейнер с перетаскиванием на базе draggabilly.<br>
 [2025-11-11 20:05][ADD FEATURE] Добавлена кнопка «Закончить ход» в руке карт с обработкой через GameEngine: разыгрываются события по числу игроков, после чего очки действий восстанавливаются.<br>
