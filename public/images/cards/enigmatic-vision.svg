@@ -1,0 +1,23 @@
+<svg width="320" height="440" viewBox="0 0 320 440" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="enigmatic-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="45%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#312e81"/>
+    </linearGradient>
+    <radialGradient id="enigmatic-glow" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="rgba(148, 197, 255, 0.85)"/>
+      <stop offset="55%" stop-color="rgba(56, 189, 248, 0.35)"/>
+      <stop offset="100%" stop-color="rgba(15, 23, 42, 0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="440" rx="26" fill="url(#enigmatic-bg)"/>
+  <circle cx="160" cy="168" r="118" fill="url(#enigmatic-glow)"/>
+  <path d="M160 90L220 172L160 254L100 172Z" fill="rgba(14, 165, 233, 0.75)"/>
+  <path d="M160 118L198 172L160 226L122 172Z" fill="rgba(191, 219, 254, 0.92)"/>
+  <circle cx="160" cy="172" r="18" fill="#f0f9ff"/>
+  <path d="M160 320C204 320 236 300 256 262L240 252C224 278 198 292 160 292C122 292 96 278 80 252L64 262C84 300 116 320 160 320Z" fill="rgba(59, 130, 246, 0.45)"/>
+  <text x="50%" y="370" text-anchor="middle" font-family="'Segoe UI', 'Trebuchet MS', sans-serif" font-size="30" fill="#e0f2fe" letter-spacing="0.12em">
+    ТАЙНА
+  </text>
+</svg>
