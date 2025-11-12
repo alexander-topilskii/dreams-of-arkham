@@ -11,6 +11,7 @@ import {
 import { GameLoopPanel, type GamePhase } from "./widgets/game-loop-panel/game-loop-panel";
 import { createDebugButton } from "./widgets/debug/debug";
 import { DebugPanel } from "./widgets/debug-panel/debug-panel";
+import { DraggableContainer } from "./widgets/draggable-container/draggable-container";
 import cardsSource from "./data/cards.json";
 import rulesSource from "./data/rules.json";
 import mapSource from "./data/map.json";
@@ -206,106 +207,100 @@ const syncTimelines = () => {
     gameLoopPanel.evaluate();
 };
 
-let debugRoot: HTMLDivElement | null = null;
-if (engineRoot instanceof HTMLElement) {
-    debugRoot = document.createElement('div');
-    debugRoot.style.marginTop = '16px';
-    engineRoot.appendChild(debugRoot);
-}
+const debugPanel = new DebugPanel(null, { title: 'Debug панель' });
+new DraggableContainer(debugPanel.element, {
+    initialPosition: { bottom: 24, right: 24 },
+});
 
-if (debugRoot) {
-    const debugPanel = new DebugPanel(debugRoot, { title: 'Debug панель' });
+const victoryGroup = debugPanel.addGroup('Параметры победы');
+debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
+    get: () => victoryProgress.collectedClues,
+    set: (value) => {
+        victoryProgress.collectedClues = value;
+    },
+    min: 0,
+    onChange: syncTimelines,
+});
+debugPanel.addNumericControl(victoryGroup, 'Сегменты ритуала', {
+    get: () => victoryProgress.ritualSegments,
+    set: (value) => {
+        victoryProgress.ritualSegments = value;
+    },
+    min: 0,
+    onChange: syncTimelines,
+});
+debugPanel.addBooleanControl(victoryGroup, 'Финальная печать', {
+    get: () => victoryProgress.finalSeal,
+    set: (value) => {
+        victoryProgress.finalSeal = value;
+    },
+    onChange: syncTimelines,
+});
 
-    const victoryGroup = debugPanel.addGroup('Параметры победы');
-    debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
-        get: () => victoryProgress.collectedClues,
-        set: (value) => {
-            victoryProgress.collectedClues = value;
-        },
-        min: 0,
-        onChange: syncTimelines,
-    });
-    debugPanel.addNumericControl(victoryGroup, 'Сегменты ритуала', {
-        get: () => victoryProgress.ritualSegments,
-        set: (value) => {
-            victoryProgress.ritualSegments = value;
-        },
-        min: 0,
-        onChange: syncTimelines,
-    });
-    debugPanel.addBooleanControl(victoryGroup, 'Финальная печать', {
-        get: () => victoryProgress.finalSeal,
-        set: (value) => {
-            victoryProgress.finalSeal = value;
-        },
-        onChange: syncTimelines,
-    });
+const defeatGroup = debugPanel.addGroup('Параметры поражения');
+debugPanel.addNumericControl(defeatGroup, 'Очки гибели', {
+    get: () => defeatProgress.doom,
+    set: (value) => {
+        defeatProgress.doom = value;
+    },
+    min: 0,
+    onChange: syncTimelines,
+});
+debugPanel.addNumericControl(defeatGroup, 'Активность культа', {
+    get: () => defeatProgress.cultActivity,
+    set: (value) => {
+        defeatProgress.cultActivity = value;
+    },
+    min: 0,
+    onChange: syncTimelines,
+});
+debugPanel.addBooleanControl(defeatGroup, 'Пробуждение Древнего', {
+    get: () => defeatProgress.awakening,
+    set: (value) => {
+        defeatProgress.awakening = value;
+    },
+    onChange: syncTimelines,
+});
 
-    const defeatGroup = debugPanel.addGroup('Параметры поражения');
-    debugPanel.addNumericControl(defeatGroup, 'Очки гибели', {
-        get: () => defeatProgress.doom,
-        set: (value) => {
-            defeatProgress.doom = value;
-        },
-        min: 0,
-        onChange: syncTimelines,
-    });
-    debugPanel.addNumericControl(defeatGroup, 'Активность культа', {
-        get: () => defeatProgress.cultActivity,
-        set: (value) => {
-            defeatProgress.cultActivity = value;
-        },
-        min: 0,
-        onChange: syncTimelines,
-    });
-    debugPanel.addBooleanControl(defeatGroup, 'Пробуждение Древнего', {
-        get: () => defeatProgress.awakening,
-        set: (value) => {
-            defeatProgress.awakening = value;
-        },
-        onChange: syncTimelines,
-    });
+const cardsGroup = debugPanel.addGroup('Карты');
+const addCardButton = createDebugButton('Добавить карту', () => {
+    cardHandController.addDebugCard()
+})
+cardsGroup.appendChild(addCardButton);
 
-    const cardsGroup = debugPanel.addGroup('Карты');
-    const addCardButton = createDebugButton('Добавить карту', () => {
-        cardHandController.addDebugCard()
-    })
-    cardsGroup.appendChild(addCardButton);
+const openCardHandButton = createDebugButton('Показать CardHand', () => {
+    cardHand.focus()
+})
 
-    const openCardHandButton = createDebugButton('Показать CardHand', () => {
-        cardHand.focus()
-    })
+cardsGroup.appendChild(openCardHandButton)
 
-    cardsGroup.appendChild(openCardHandButton)
+const mapGroup = debugPanel.addGroup('Карта');
+const addTerritoryButton = createDebugButton('Добавить территорию', () => {
+    expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
+});
+mapGroup.appendChild(addTerritoryButton);
 
-    const mapGroup = debugPanel.addGroup('Карта');
-    const addTerritoryButton = createDebugButton('Добавить территорию', () => {
-        expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
-    });
-    mapGroup.appendChild(addTerritoryButton);
+const addCharacterButton = createDebugButton('Добавить персонажа', () => {
+    const territoryIds = expeditionMap.getTerritoryIds();
+    if (territoryIds.length === 0) {
+        console.warn('Нет доступных территорий для размещения персонажа.');
+        return;
+    }
 
-    const addCharacterButton = createDebugButton('Добавить персонажа', () => {
-        const territoryIds = expeditionMap.getTerritoryIds();
-        if (territoryIds.length === 0) {
-            console.warn('Нет доступных территорий для размещения персонажа.');
-            return;
-        }
+    const territoryId = territoryIds[Math.floor(Math.random() * territoryIds.length)];
+    const characterToken = createRandomMapCharacterToken();
+    expeditionMap.placeCharacter(characterToken, territoryId);
+});
+mapGroup.appendChild(addCharacterButton);
 
-        const territoryId = territoryIds[Math.floor(Math.random() * territoryIds.length)];
-        const characterToken = createRandomMapCharacterToken();
-        expeditionMap.placeCharacter(characterToken, territoryId);
-    });
-    mapGroup.appendChild(addCharacterButton);
-
-    const eventsGroup = debugPanel.addGroup('События');
-    const triggerEventButton = createDebugButton('Вызвать событие', () => {
-        eventDeck.triggerEvent();
-    });
-    const reshuffleEventsButton = createDebugButton('Перемешать сброс событий', () => {
-        eventDeck.reshuffleDiscard();
-    });
-    eventsGroup.append(triggerEventButton, reshuffleEventsButton);
-}
+const eventsGroup = debugPanel.addGroup('События');
+const triggerEventButton = createDebugButton('Вызвать событие', () => {
+    eventDeck.triggerEvent();
+});
+const reshuffleEventsButton = createDebugButton('Перемешать сброс событий', () => {
+    eventDeck.reshuffleDiscard();
+});
+eventsGroup.append(triggerEventButton, reshuffleEventsButton);
 
 function createRandomCard(
     generateInstanceId: (baseId: string) => string = generateCardInstanceId,
