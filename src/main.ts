@@ -27,6 +27,9 @@ import {
     GameEngineDebugFacade,
     UpdateDefeatProgressCommand,
     UpdateVictoryProgressCommand,
+    TriggerEventDeckCommand,
+    RevealEventsCommand,
+    DiscardRevealedEventCommand,
     type GameProgressSlice,
     type GameViewModel,
     type EventDeckState,
@@ -197,6 +200,18 @@ const gameEngineStore = new GameEngineStore(
         createDebugCard: () => createRandomCard(),
     },
 );
+
+eventDeck.setIntentHandlers({
+    onTrigger: () => {
+        gameEngineStore.dispatch(new TriggerEventDeckCommand());
+    },
+    onReveal: (count) => {
+        gameEngineStore.dispatch(new RevealEventsCommand(count));
+    },
+    onDiscard: (cardId) => {
+        gameEngineStore.dispatch(new DiscardRevealedEventCommand(cardId));
+    },
+});
 
 const mapAdapter = new GameEngineMapAdapter(gameEngineStore, expeditionMap);
 const eventDeckAdapter = new GameEngineEventDeckAdapter(gameEngineStore, eventDeck);

@@ -107,7 +107,8 @@ export type GameEvent =
     | { type: "map:characterPlaced"; territoryId: string; character: ExpeditionMapCharacterConfig }
     | { type: "eventDeck:triggered"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:revealed"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
-    | { type: "eventDeck:reshuffled"; deck: EventDeckState };
+    | { type: "eventDeck:reshuffled"; deck: EventDeckState }
+    | { type: "eventDeck:discarded"; deck: EventDeckState; cardId: string };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
@@ -348,7 +349,8 @@ export class GameEngineStore {
             }
             case "eventDeck:triggered":
             case "eventDeck:revealed":
-            case "eventDeck:reshuffled": {
+            case "eventDeck:reshuffled":
+            case "eventDeck:discarded": {
                 this.applyDeckState(event.deck);
                 break;
             }
@@ -974,6 +976,109 @@ export class PlaceDebugCharacterCommand extends BaseGameEngineStoreCommand {
                 type: "log",
                 channel: "system",
                 message: `map:character_place:${characterId}:${targetId}`,
+            },
+        ];
+    }
+}
+
+export class RevealEventsCommand extends BaseGameEngineStoreCommand {
+    constructor(private readonly requestedCount: number) {
+        super();
+    }
+
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        const deckState = context.state.deck;
+        if (!deckState) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:reveal:missing" },
+            ];
+        }
+
+        const normalized = Math.max(0, Math.floor(this.requestedCount));
+        if (normalized === 0) {
+            const snapshot = cloneDeckState(deckState);
+            snapshot.status = {
+                message: "Этап событий пропущен — новых карт не открывается.",
+                variant: "warn",
+            };
+            return [
+                { type: "eventDeck:revealed", deck: snapshot, drawn: [] },
+                { type: "log", channel: "system", message: "event_deck:reveal:skipped" },
+            ];
+        }
+
+        const result = drawCardsFromDeck(deckState, normalized);
+        if (result.drawn.length === 0) {
+            result.deck.status = createDeckEmptyStatus(deckState);
+        } else {
+            const noun = resolveEventNoun(result.drawn.length);
+            result.deck.status = {
+                message: "Открыто " + result.drawn.length + " " + noun + ".",
+                variant: "success",
+            };
+        }
+
+        return [
+            { type: "eventDeck:revealed", deck: result.deck, drawn: result.drawn },
+            {
+                type: "log",
+                channel: "system",
+                message: "event_deck:revealed:" + result.drawn.length,
+            },
+        ];
+    }
+}
+
+export class DiscardRevealedEventCommand extends BaseGameEngineStoreCommand {
+    constructor(private readonly cardId: string) {
+        super();
+    }
+
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        const deckState = context.state.deck;
+        if (!deckState) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:discard:missing" },
+            ];
+        }
+
+        const normalizedId = this.cardId.trim();
+        if (!normalizedId) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:discard:invalid_id" },
+            ];
+        }
+
+        const snapshot = cloneDeckState(deckState);
+        const index = snapshot.revealed.findIndex((card) => card.id === normalizedId);
+        if (index === -1) {
+            return [
+                {
+                    type: "log",
+                    channel: "system",
+                    message: "event_deck:discard:not_found:" + normalizedId,
+                },
+            ];
+        }
+
+        const removed = snapshot.revealed.splice(index, 1);
+        const [card] = removed;
+        if (!card) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:discard:empty_result" },
+            ];
+        }
+        snapshot.discardPile = [...snapshot.discardPile, card];
+        snapshot.status = {
+            message: "Событие «" + card.title + "» отправлено в сброс.",
+        };
+
+        return [
+            { type: "eventDeck:discarded", deck: snapshot, cardId: normalizedId },
+            {
+                type: "log",
+                channel: "system",
+                message: "event_deck:discarded:" + normalizedId,
             },
         ];
     }

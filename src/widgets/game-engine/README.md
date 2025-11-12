@@ -35,6 +35,8 @@ GameEngineWidget & GameEngineStore
 - `subscribe(listener)` мгновенно отправляет `state:sync` с текущим вью-моделом и возвращает disposer.
 - Формирует срезы `map` и `deck` во `viewModel` (открытые территории, размещённые персонажи, стопки событий); UI-адаптеры подписываются
   на стор и синхронизируют `ExpeditionMap` и `EventDeck` с опубликованными данными.
+- Манипулирует колодой исключительно через команды: `TriggerEventDeckCommand`, `RevealEventsCommand`, `DiscardRevealedEventCommand`,
+  `ReshuffleEventDeckCommand`. Каждая из них использует утилиты `drawCardsFromDeck` и `shuffleCards`, чтобы применять мутации через `dispatch`.
 
 ### GameEngineWidget
 - В конструкторе монтирует стили (один раз на документ), создаёт DOM-структуру и подписывается на стор.
@@ -45,7 +47,8 @@ GameEngineWidget & GameEngineStore
 - `log` — добавляет запись в пользовательский или системный журнал.
 - `actions:update` — обновляет очки действий.
 - `location:*` / `player:place` — изменяют срез карты (раскрытие, размещение, установка текущей локации).
-- `eventDeck:*` — синхронизируют состояние колоды событий и сообщают об отладочных действиях.
+- `eventDeck:*` — синхронизируют состояние колоды событий и сообщают об отладочных действиях (`eventDeck:discarded` публикуется
+  при переносе карты из активных событий в сброс).
 - `move:success` / `move:failure` — результат `MoveWithCardCommand` вместе с сообщением об ошибке.
 - `turn:ended` — сводка конца хода с восстановленными очками действий и количеством вытянутых событий.
 - `card:added` / `card:consumed` / `hand:sync` — синхронизация руки (используется `CardHandController`).
@@ -95,6 +98,9 @@ import {
     MoveWithCardCommand,
     PostLogCommand,
     EndTurnCommand,
+    TriggerEventDeckCommand,
+    RevealEventsCommand,
+    DiscardRevealedEventCommand,
     type EventDeckState,
 } from './widgets/game-engine/game-engine-store';
 import { GameEngineMapAdapter } from './widgets/game-engine/game-engine-map-adapter';
@@ -122,6 +128,12 @@ const store = new GameEngineStore(
 const mapAdapter = new GameEngineMapAdapter(store, map);
 const deckAdapter = new GameEngineEventDeckAdapter(store, deck);
 const widget = new GameEngineWidget(engineRoot, store);
+
+deck.setIntentHandlers({
+    onTrigger: () => store.dispatch(new TriggerEventDeckCommand()),
+    onReveal: (count) => store.dispatch(new RevealEventsCommand(count)),
+    onDiscard: (cardId) => store.dispatch(new DiscardRevealedEventCommand(cardId)),
+});
 
 store.initialize();
 
