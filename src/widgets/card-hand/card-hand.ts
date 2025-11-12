@@ -414,6 +414,11 @@ export class CardHand {
 
         wrapper.appendChild(button)
         this.strip.appendChild(wrapper)
+
+        const baseHeight = Math.floor(this.cardWidth * 1.4)
+        const contentHeight = Math.ceil(cardInner.scrollHeight)
+        button.style.height = `${Math.max(baseHeight, contentHeight)}px`
+
         this.cardElements.set(card.instanceId, wrapper)
     }
 
