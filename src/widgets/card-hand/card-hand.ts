@@ -646,7 +646,11 @@ export class CardHand {
         if (this.cards.length > 0) {
             this.viewport.classList.remove('card-hand-widget__viewport--empty')
             this.viewport.setAttribute('aria-label', 'Рука игрока')
-            if (this.viewport.firstElementChild === null) {
+            const placeholder = this.viewport.querySelector('.card-hand-widget__empty')
+            if (placeholder) {
+                placeholder.remove()
+            }
+            if (!this.viewport.contains(this.strip)) {
                 this.viewport.appendChild(this.strip)
             }
             return
