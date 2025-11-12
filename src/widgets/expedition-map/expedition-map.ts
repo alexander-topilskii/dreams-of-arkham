@@ -75,6 +75,8 @@ const MOVE_THRESHOLD = 6;
 const AUTO_LAYOUT_COLUMNS = 4;
 const AUTO_LAYOUT_HORIZONTAL_GAP = 72;
 const AUTO_LAYOUT_VERTICAL_GAP = 56;
+const DEFAULT_MIN_SCALE = 0.5;
+const MIN_SCALE_FLOOR = 0.2;
 
 const TERRITORY_POLYGON_POINTS = [
     { x: 0, y: 0 },
@@ -488,7 +490,9 @@ export class ExpeditionMap {
     private offset = { x: 0, y: 0 };
     private autoLayoutCursor = 0;
     private scale = 1;
-    private readonly minScale = 0.5;
+    private readonly defaultMinScale = DEFAULT_MIN_SCALE;
+    private readonly minScaleFloor = MIN_SCALE_FLOOR;
+    private minScale = DEFAULT_MIN_SCALE;
     private readonly maxScale = 2.8;
     private readonly scaleStep = 0.15;
     private zoomControls: {
@@ -496,6 +500,10 @@ export class ExpeditionMap {
         zoomOut: HTMLButtonElement;
         reset: HTMLButtonElement;
     } | null = null;
+    private viewportObserver: ResizeObserver | null = null;
+    private pendingViewportUpdate: number | null = null;
+    private pendingForceFit = false;
+    private readonly handleWindowResize = () => this.queueViewportRecalculation();
 
     constructor(root: HTMLElement | null, config: ExpeditionMapConfig) {
         if (!root) {
@@ -545,6 +553,7 @@ export class ExpeditionMap {
         this.root.appendChild(this.createLegend());
         root.appendChild(this.root);
 
+        this.attachViewportObserver();
         this.root.style.setProperty('--map-scale', this.scale.toString());
 
         this.initializePan();
@@ -567,6 +576,8 @@ export class ExpeditionMap {
                 this.placeCharacter(placement.character, placement.territoryId);
             });
         }
+
+        this.queueViewportRecalculation(true);
     }
 
     public addTerritory(territory: TerritoryConfig): void {
@@ -1045,6 +1056,7 @@ export class ExpeditionMap {
 
         this.mapSize = { width: nextWidth, height: nextHeight };
         this.applyMapSize();
+        this.queueViewportRecalculation();
     }
 
     private bootstrapCoordinateSpace(territories: Territory[]) {
@@ -1272,10 +1284,8 @@ export class ExpeditionMap {
 
     private resetView() {
         this.offset = { x: 0, y: 0 };
-        this.setScale(1, undefined, true);
-        this.offset = { x: 0, y: 0 };
         this.applyOffset();
-        this.updateZoomControls();
+        this.queueViewportRecalculation(true);
     }
 
     private getViewportCenter(): { x: number; y: number } {
@@ -1536,6 +1546,73 @@ export class ExpeditionMap {
             view.element.style.setProperty('--description-lines', String(descriptionClamp));
             view.element.style.setProperty('--title-lines', String(titleClamp));
         });
+    }
+
+    private attachViewportObserver() {
+        if (typeof ResizeObserver === 'function') {
+            this.viewportObserver = new ResizeObserver(() => this.queueViewportRecalculation());
+            this.viewportObserver.observe(this.viewport);
+            return;
+        }
+
+        window.addEventListener('resize', this.handleWindowResize);
+    }
+
+    private queueViewportRecalculation(forceFit = false) {
+        if (forceFit) {
+            this.pendingForceFit = true;
+        }
+
+        if (this.pendingViewportUpdate !== null) {
+            return;
+        }
+
+        this.pendingViewportUpdate = requestAnimationFrame(() => {
+            this.pendingViewportUpdate = null;
+            const shouldForceFit = this.pendingForceFit;
+            this.pendingForceFit = false;
+            this.updateViewportScaleConstraints(shouldForceFit);
+        });
+    }
+
+    private updateViewportScaleConstraints(forceFit: boolean) {
+        const rect = this.viewport.getBoundingClientRect();
+        const viewportWidth = rect.width || this.viewport.clientWidth || this.root.clientWidth || 0;
+        const viewportHeight = rect.height || this.viewport.clientHeight || this.root.clientHeight || 0;
+
+        if (!viewportWidth || !viewportHeight) {
+            return;
+        }
+
+        const mapWidth = this.mapSize.width;
+        const mapHeight = this.mapSize.height;
+
+        if (!mapWidth || !mapHeight) {
+            return;
+        }
+
+        const fitScale = Math.min(viewportWidth / mapWidth, viewportHeight / mapHeight);
+        const nextMinScale = Math.max(this.minScaleFloor, Math.min(this.defaultMinScale, fitScale));
+
+        const prevMinScale = this.minScale;
+        this.minScale = Math.min(nextMinScale, this.maxScale);
+
+        const targetScale = Math.min(1, Math.max(fitScale, this.minScale));
+
+        if (forceFit) {
+            this.offset = { x: 0, y: 0 };
+            this.setScale(targetScale, undefined, true);
+            return;
+        }
+
+        if (this.scale < this.minScale) {
+            this.setScale(targetScale, this.getViewportCenter(), true);
+            return;
+        }
+
+        if (prevMinScale !== this.minScale) {
+            this.updateZoomControls();
+        }
     }
 
     private updateZoomControls() {
