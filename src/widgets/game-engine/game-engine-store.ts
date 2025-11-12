@@ -1,6 +1,8 @@
 import { EventDeck } from "../event-deck/event-deck";
 import {
     type ExpeditionMap,
+    type ExpeditionMapCharacterConfig,
+    type ExpeditionMapCharacterPlacement,
     type ExpeditionMapConfig,
     type TerritoryConfig,
 } from "../expedition-map/expedition-map";
@@ -65,7 +67,11 @@ export type GameEvent =
     | { type: "card:consumed"; card: HandCardContent; reason?: "consume" | "discard" | "debug" }
     | { type: "hand:sync"; hand: readonly HandCardContent[] }
     | { type: "progress:victoryUpdate"; progress: GameProgressSlice }
-    | { type: "progress:defeatUpdate"; progress: GameProgressSlice };
+    | { type: "progress:defeatUpdate"; progress: GameProgressSlice }
+    | { type: "map:territoryAdded"; territory: TerritoryConfig }
+    | { type: "map:characterPlaced"; territoryId: string; character: ExpeditionMapCharacterConfig }
+    | { type: "eventDeck:triggered" }
+    | { type: "eventDeck:reshuffled" };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
@@ -112,6 +118,12 @@ export type GameEngineStoreOptions = {
     readonly initialHand?: readonly HandCardDefinition[];
     readonly createDebugCard?: () => HandCardDefinition | undefined;
 };
+
+function isStoreCommand(
+    command: GameCommand | GameEngineStoreCommand,
+): command is BaseGameEngineStoreCommand {
+    return command instanceof BaseGameEngineStoreCommand;
+}
 
 export class GameEngineStore {
     private readonly config: GameEngineConfig;
@@ -187,11 +199,14 @@ export class GameEngineStore {
         this.subscribers.delete(subscriber);
     }
 
+    public getTerritoryIds(): readonly string[] {
+        return this.config.map.getTerritoryIds();
+    }
+
     public dispatch(command: GameCommand | GameEngineStoreCommand): GameEvent[] {
-        const events =
-            command instanceof BaseGameEngineStoreCommand
-                ? command.execute(this.createStoreContext()) ?? []
-                : command.execute(this.createBaseContext()) ?? [];
+        const events = isStoreCommand(command)
+            ? command.execute(this.createStoreContext()) ?? []
+            : (command as GameCommand).execute(this.createBaseContext()) ?? [];
 
         for (const event of events) {
             this.applyEvent(event);
@@ -287,6 +302,24 @@ export class GameEngineStore {
                 };
                 break;
             }
+            case "map:territoryAdded": {
+                this.registerTerritory(event.territory);
+                this.config.map.addTerritory(event.territory);
+                break;
+            }
+            case "map:characterPlaced": {
+                this.updateCharacterPlacement(event.character, event.territoryId);
+                this.config.map.placeCharacter(event.character, event.territoryId);
+                break;
+            }
+            case "eventDeck:triggered": {
+                this.eventDeck?.triggerEvent();
+                break;
+            }
+            case "eventDeck:reshuffled": {
+                this.eventDeck?.reshuffleDiscard();
+                break;
+            }
         }
 
         this.viewModel = this.buildViewModel();
@@ -347,6 +380,36 @@ export class GameEngineStore {
 
     private setCurrentLocation(locationId: string | null): void {
         this.state = { ...this.state, currentLocationId: locationId };
+    }
+
+    private registerTerritory(territory: TerritoryConfig): void {
+        const territories = this.config.mapConfig.territories;
+        const existingIndex = territories.findIndex((entry) => entry.id === territory.id);
+
+        if (existingIndex >= 0) {
+            territories[existingIndex] = territory;
+        } else {
+            territories.push(territory);
+        }
+
+        this.territoryLookup.set(territory.id, territory);
+    }
+
+    private updateCharacterPlacement(
+        character: ExpeditionMapCharacterConfig,
+        territoryId: string,
+    ): void {
+        const placement: ExpeditionMapCharacterPlacement = { territoryId, character };
+        const characters = this.config.mapConfig.characters ?? [];
+        const existingIndex = characters.findIndex((entry) => entry.character.id === character.id);
+
+        if (existingIndex >= 0) {
+            characters[existingIndex] = placement;
+        } else {
+            characters.push(placement);
+        }
+
+        this.config.mapConfig.characters = characters;
     }
 
     private buildViewModel(): GameViewModel {
@@ -677,6 +740,106 @@ export class AddDebugCardCommand extends BaseGameEngineStoreCommand {
     }
 }
 
+export class AddTerritoryCommand extends BaseGameEngineStoreCommand {
+    constructor(private readonly territory: TerritoryConfig) {
+        super();
+    }
+
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        const id = this.territory.id?.trim();
+        if (!id) {
+            return [
+                { type: "log", channel: "system", message: "map:add_territory:invalid_id" },
+            ];
+        }
+
+        const duplicate = context.config.mapConfig.territories.some((entry) => entry.id === id);
+        if (duplicate) {
+            return [
+                { type: "log", channel: "system", message: `map:add_territory:duplicate:${id}` },
+            ];
+        }
+
+        return [
+            { type: "map:territoryAdded", territory: this.territory },
+            { type: "log", channel: "system", message: `map:territory_added:${id}` },
+        ];
+    }
+}
+
+export class PlaceDebugCharacterCommand extends BaseGameEngineStoreCommand {
+    constructor(
+        private readonly territoryId: string,
+        private readonly character: ExpeditionMapCharacterConfig,
+    ) {
+        super();
+    }
+
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        const targetId = this.territoryId?.trim();
+        if (!targetId) {
+            return [
+                { type: "log", channel: "system", message: "map:character_place:invalid_territory" },
+            ];
+        }
+
+        const territoryExists = context.config.mapConfig.territories.some(
+            (entry) => entry.id === targetId,
+        );
+        if (!territoryExists) {
+            return [
+                { type: "log", channel: "system", message: `map:character_place:unknown:${targetId}` },
+            ];
+        }
+
+        const characterId = this.character.id?.trim();
+        if (!characterId) {
+            return [
+                { type: "log", channel: "system", message: "map:character_place:invalid_character" },
+            ];
+        }
+
+        return [
+            { type: "map:characterPlaced", territoryId: targetId, character: this.character },
+            {
+                type: "log",
+                channel: "system",
+                message: `map:character_place:${characterId}:${targetId}`,
+            },
+        ];
+    }
+}
+
+export class TriggerEventDeckCommand extends BaseGameEngineStoreCommand {
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        if (!context.eventDeck) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:trigger:missing" },
+            ];
+        }
+
+        return [
+            { type: "eventDeck:triggered" },
+            { type: "log", channel: "system", message: "event_deck:triggered" },
+        ];
+    }
+}
+
+export class ReshuffleEventDeckCommand extends BaseGameEngineStoreCommand {
+    execute(context: GameEngineStoreContext): GameEvent[] {
+        if (!context.eventDeck) {
+            return [
+                { type: "log", channel: "system", message: "event_deck:reshuffle:missing" },
+            ];
+        }
+
+        return [
+            { type: "eventDeck:reshuffled" },
+            { type: "log", channel: "system", message: "event_deck:reshuffled" },
+        ];
+    }
+}
+
 export class UpdateVictoryProgressCommand implements GameCommand {
     constructor(private readonly updates: Partial<GameProgressSlice>) {}
 
@@ -718,4 +881,28 @@ function normalizeProgressSlice(updates: Partial<GameProgressSlice>): GameProgre
     }
 
     return normalized;
+}
+
+export class GameEngineDebugFacade {
+    constructor(private readonly store: GameEngineStore) {}
+
+    public getTerritoryIds(): readonly string[] {
+        return this.store.getTerritoryIds();
+    }
+
+    public addTerritory(territory: TerritoryConfig): void {
+        this.store.dispatch(new AddTerritoryCommand(territory));
+    }
+
+    public placeCharacter(territoryId: string, character: ExpeditionMapCharacterConfig): void {
+        this.store.dispatch(new PlaceDebugCharacterCommand(territoryId, character));
+    }
+
+    public triggerEventDeck(): void {
+        this.store.dispatch(new TriggerEventDeckCommand());
+    }
+
+    public reshuffleEventDeck(): void {
+        this.store.dispatch(new ReshuffleEventDeckCommand());
+    }
 }
