@@ -171,16 +171,18 @@ const styles = `
 
 .map-territory__characters {
     position: absolute;
-    top: calc(-16px * var(--map-scale));
-    left: calc(-16px * var(--map-scale));
+    top: 0;
+    left: 0;
     display: flex;
     flex-wrap: wrap;
     gap: clamp(6px, 8px * var(--map-scale), 14px);
     justify-content: flex-start;
     align-content: flex-start;
     pointer-events: none;
-    width: calc(100% + 32px * var(--map-scale));
-    max-width: calc(100% + 32px * var(--map-scale));
+    width: 100%;
+    max-width: 100%;
+    padding: clamp(12px, 14px * var(--map-scale), 24px);
+    box-sizing: border-box;
     z-index: 2;
 }
 
