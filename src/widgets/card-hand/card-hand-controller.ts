@@ -93,6 +93,10 @@ export class CardHandController {
         }
     }
 
+    handleEndTurn(): void {
+        this.gameEngine.endTurn()
+    }
+
     private createCardContent(card: HandCardDefinition): HandCardContent {
         return {
             ...card,

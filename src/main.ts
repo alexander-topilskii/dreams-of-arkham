@@ -136,6 +136,7 @@ const cardHand = new CardHand(handRoot, {
     onCardConsumed: (card) => cardHandController.handleCardConsumed(card),
     onMoveCardDropFailure: (card, territoryId, message) =>
         cardHandController.onDropFailure(card, territoryId, message),
+    onEndTurn: () => cardHandController?.handleEndTurn(),
 })
 
 const mapContainer = document.getElementById('map-panel');
@@ -154,6 +155,8 @@ const gameEngine = new GameEngine(engineRoot, {
     map: expeditionMap,
     mapConfig: expeditionMapConfig,
     initialActions: initialCharacterState.actionPoints,
+    playerCount: 1,
+    eventDeck,
     onActionsChange: (actions) => {
         characterCard.setState({ actionPoints: actions })
     },

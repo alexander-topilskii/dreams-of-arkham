@@ -432,6 +432,30 @@ export class EventDeck {
         this.setStatus(`Открыто новых событий: ${actual.length}.`, 'success');
     }
 
+    revealEvents(count: number): EventDeckCardConfig[] {
+        const normalized = Math.max(0, Math.floor(count));
+
+        if (normalized === 0) {
+            this.setStatus('Этап событий пропущен — новых карт не открывается.', 'warn');
+            return [];
+        }
+
+        const drawn = this.drawCards(normalized);
+
+        if (drawn.length === 0) {
+            if (this.discard.length > 0) {
+                this.setStatus('Колода пуста. Перемешайте сброс, чтобы продолжить.', 'warn');
+            } else {
+                this.setStatus('Колода иссякла — новых событий не осталось.', 'warn');
+            }
+            return drawn;
+        }
+
+        const noun = this.resolveEventNoun(drawn.length);
+        this.setStatus(`Открыто ${drawn.length} ${noun}.`, 'success');
+        return drawn;
+    }
+
     reshuffleDiscard() {
         if (this.discard.length === 0) {
             this.setStatus('Сброс пуст — нечего перемешивать.', 'warn');
@@ -464,6 +488,21 @@ export class EventDeck {
         this.updateDeckVisual();
         this.updateRevealedHeader();
         return cards;
+    }
+
+    private resolveEventNoun(count: number): string {
+        const mod10 = count % 10;
+        const mod100 = count % 100;
+
+        if (mod10 === 1 && mod100 !== 11) {
+            return 'событие';
+        }
+
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+            return 'события';
+        }
+
+        return 'событий';
     }
 
     private addRevealedCard(card: EventDeckCardConfig) {

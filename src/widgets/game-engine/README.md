@@ -28,6 +28,7 @@ GameEngine
 - `dispatch(command)` executes the command in FIFO order, appending it to history and re-rendering logs and the state badge.
 - `EnterLocationCommand` reveals the specified territory on the Expedition Map, places the player token, updates engine state, and appends both narrative and system log entries.
 - `attemptMoveWithCard(card, territoryId)` validates adjacency and remaining actions, spends the cost, moves the character, and logs success or a localized failure message.
+- `endTurn()` завершает ход игрока, разыгрывает события через `EventDeck` по количеству игроков и восстанавливает очки действий.
 - The state badge displays both the current location title and the remaining action points; `onActionsChange` notifies external UI (e.g., CharacterCard) about updates.
 - `logUserMessage` and `logSystemMessage` append entries for later rendering; logs display from oldest to newest. When no entries exist a dashed placeholder appears instead of empty list items.
 - `refresh()` forces a re-render without executing a command—useful after manual `logUserMessage` calls.
@@ -42,6 +43,8 @@ GameEngine
 | `map` | `ExpeditionMap` | — | Map widget instance used to reveal territories and place the player token. |
 | `mapConfig` | `ExpeditionMapConfig` | — | Source data for territories; used to resolve titles and initial placement. |
 | `initialActions` | `number` | — | Starting action points shown in the state badge. |
+| `playerCount` | `number` | `1` | Total number of investigators; управляет количеством карт событий при конце хода. |
+| `eventDeck` | `EventDeck` | — | Колода событий, которую движок использует при завершении хода. |
 | `onActionsChange` | `(actions: number) => void` | — | Notifies external UI when remaining actions change. |
 | `initialize()` | `() => void` | — | Bootstraps the engine; safe to call once. |
 | `dispatch(command)` | `(GameCommand) => void` | — | Executes a command and records it in the history. |
@@ -52,6 +55,7 @@ GameEngine
 | `placePlayer(id)` | `(string) => void` | — | Places the player token on the map territory. |
 | `attemptMoveWithCard(card, territoryId)` | `(MoveCardDescriptor, string) => MoveAttemptResult` | — | Validates and resolves a move card play, logging success or failure. |
 | `refresh()` | `() => void` | — | Forces immediate re-render of logs and badge without executing a command. |
+| `endTurn()` | `() => void` | — | Triggers end-of-turn flow: логирует завершение, открывает события и восстанавливает действия. |
 
 ## States and Examples
 - **Initial (before initialize)**: Logs show placeholders, state badge displays `Текущая локация: неизвестно`.
