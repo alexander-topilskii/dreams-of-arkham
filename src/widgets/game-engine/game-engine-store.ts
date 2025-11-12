@@ -1,11 +1,10 @@
-import { EventDeck } from "../event-deck/event-deck";
 import {
-    type ExpeditionMap,
     type ExpeditionMapCharacterConfig,
     type ExpeditionMapCharacterPlacement,
     type ExpeditionMapConfig,
     type TerritoryConfig,
 } from "../expedition-map/expedition-map";
+import { type EventDeckCardConfig } from "../event-deck/event-deck";
 import {
     generateCardInstanceId,
     type HandCardContent,
@@ -23,15 +22,47 @@ export type GameEnginePlayerConfig = {
 
 export type GameEngineConfig = {
     player: GameEnginePlayerConfig;
-    map: ExpeditionMap;
     mapConfig: ExpeditionMapConfig;
     initialActions: number;
     playerCount?: number;
-    eventDeck?: EventDeck;
-    onActionsChange?: (actions: number) => void;
+    initialDeckState?: EventDeckState;
 };
 
 export type GameProgressSlice = Record<string, number | boolean>;
+
+export type GameMapState = {
+    revealedTerritoryIds: string[];
+    characterPlacements: ExpeditionMapCharacterPlacement[];
+};
+
+export type GameMapViewModel = {
+    readonly territories: readonly TerritoryConfig[];
+    readonly revealedTerritoryIds: readonly string[];
+    readonly characterPlacements: readonly ExpeditionMapCharacterPlacement[];
+};
+
+export type EventDeckStatusVariant = "warn" | "success";
+
+export type EventDeckStatus = {
+    message: string;
+    variant?: EventDeckStatusVariant;
+};
+
+export type EventDeckState = {
+    draw: { min: number; max: number };
+    drawPile: EventDeckCardConfig[];
+    revealed: EventDeckCardConfig[];
+    discardPile: EventDeckCardConfig[];
+    status?: EventDeckStatus;
+};
+
+export type EventDeckViewModel = {
+    readonly draw: { readonly min: number; readonly max: number };
+    readonly drawPile: readonly EventDeckCardConfig[];
+    readonly revealed: readonly EventDeckCardConfig[];
+    readonly discardPile: readonly EventDeckCardConfig[];
+    readonly status?: EventDeckStatus;
+};
 
 export type GameEngineState = {
     currentLocationId: string | null;
@@ -40,6 +71,8 @@ export type GameEngineState = {
     systemLog: readonly string[];
     victoryProgress: GameProgressSlice;
     defeatProgress: GameProgressSlice;
+    map: GameMapState;
+    deck?: EventDeckState;
 };
 
 export type GameViewModel = {
@@ -51,6 +84,8 @@ export type GameViewModel = {
     readonly hand: readonly HandCardContent[];
     readonly victoryProgress: Readonly<GameProgressSlice>;
     readonly defeatProgress: Readonly<GameProgressSlice>;
+    readonly map: GameMapViewModel;
+    readonly deck?: EventDeckViewModel;
 };
 
 export type GameEvent =
@@ -70,8 +105,9 @@ export type GameEvent =
     | { type: "progress:defeatUpdate"; progress: GameProgressSlice }
     | { type: "map:territoryAdded"; territory: TerritoryConfig }
     | { type: "map:characterPlaced"; territoryId: string; character: ExpeditionMapCharacterConfig }
-    | { type: "eventDeck:triggered" }
-    | { type: "eventDeck:reshuffled" };
+    | { type: "eventDeck:triggered"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
+    | { type: "eventDeck:revealed"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
+    | { type: "eventDeck:reshuffled"; deck: EventDeckState };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
@@ -90,7 +126,6 @@ export type MoveFailureReason =
 export type GameEngineContext = {
     readonly state: Readonly<GameEngineState>;
     readonly config: GameEngineConfig;
-    readonly eventDeck?: EventDeck;
     readonly playerCount: number;
     readonly initialActions: number;
 };
@@ -127,7 +162,6 @@ function isStoreCommand(
 
 export class GameEngineStore {
     private readonly config: GameEngineConfig;
-    private readonly eventDeck?: EventDeck;
     private readonly territoryLookup = new Map<string, TerritoryConfig>();
     private readonly playerCount: number;
     private readonly initialActions: number;
@@ -142,7 +176,6 @@ export class GameEngineStore {
 
     constructor(config: GameEngineConfig, options: GameEngineStoreOptions = {}) {
         this.config = config;
-        this.eventDeck = config.eventDeck;
         this.createDebugCard = options.createDebugCard;
 
         const configuredPlayerCount = config.playerCount;
@@ -171,10 +204,14 @@ export class GameEngineStore {
             systemLog: [],
             victoryProgress: {},
             defeatProgress: {},
+            map: {
+                revealedTerritoryIds: [],
+                characterPlacements: cloneCharacterPlacements(config.mapConfig.characters ?? []),
+            },
+            deck: config.initialDeckState ? cloneDeckState(config.initialDeckState) : undefined,
         };
 
         this.viewModel = this.buildViewModel();
-        this.config.onActionsChange?.(this.state.actionsRemaining);
     }
 
     public initialize(): void {
@@ -200,7 +237,7 @@ export class GameEngineStore {
     }
 
     public getTerritoryIds(): readonly string[] {
-        return this.config.map.getTerritoryIds();
+        return this.config.mapConfig.territories.map((territory) => territory.id);
     }
 
     public dispatch(command: GameCommand | GameEngineStoreCommand): GameEvent[] {
@@ -224,7 +261,6 @@ export class GameEngineStore {
         return {
             state: this.state,
             config: this.config,
-            eventDeck: this.eventDeck,
             playerCount: this.playerCount,
             initialActions: this.initialActions,
         };
@@ -254,11 +290,11 @@ export class GameEngineStore {
                 break;
             }
             case "location:reveal": {
-                this.revealLocation(event.locationId);
+                this.applyLocationReveal(event.locationId);
                 break;
             }
             case "player:place": {
-                this.placePlayer(event.locationId);
+                this.applyPlayerPlacement(event.locationId);
                 break;
             }
             case "location:set": {
@@ -304,20 +340,16 @@ export class GameEngineStore {
             }
             case "map:territoryAdded": {
                 this.registerTerritory(event.territory);
-                this.config.map.addTerritory(event.territory);
                 break;
             }
             case "map:characterPlaced": {
-                this.updateCharacterPlacement(event.character, event.territoryId);
-                this.config.map.placeCharacter(event.character, event.territoryId);
+                this.applyCharacterPlacement({ territoryId: event.territoryId, character: event.character });
                 break;
             }
-            case "eventDeck:triggered": {
-                this.eventDeck?.triggerEvent();
-                break;
-            }
+            case "eventDeck:triggered":
+            case "eventDeck:revealed":
             case "eventDeck:reshuffled": {
-                this.eventDeck?.reshuffleDiscard();
+                this.applyDeckState(event.deck);
                 break;
             }
         }
@@ -356,26 +388,44 @@ export class GameEngineStore {
             ...this.state,
             actionsRemaining: normalized,
         };
-        this.config.onActionsChange?.(this.state.actionsRemaining);
     }
 
-    private revealLocation(locationId: string): void {
-        this.config.map.revealTerritory(locationId);
-    }
+    private applyLocationReveal(locationId: string): void {
+        const normalized = locationId?.trim();
+        if (!normalized) {
+            return;
+        }
 
-    private placePlayer(locationId: string): void {
-        const { player } = this.config;
-        this.config.map.placeCharacter(
-            {
-                id: player.id,
-                name: player.name,
-                label: player.label,
-                color: player.color,
-                textColor: player.textColor,
-                image: player.image,
+        if (this.state.map.revealedTerritoryIds.includes(normalized)) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            map: {
+                ...this.state.map,
+                revealedTerritoryIds: [...this.state.map.revealedTerritoryIds, normalized],
             },
-            locationId,
-        );
+        };
+    }
+
+    private applyPlayerPlacement(locationId: string): void {
+        const normalized = locationId?.trim();
+        if (!normalized) {
+            return;
+        }
+
+        const { player } = this.config;
+        const character: ExpeditionMapCharacterConfig = {
+            id: player.id,
+            name: player.name,
+            label: player.label,
+            color: player.color,
+            textColor: player.textColor,
+            image: player.image,
+        };
+
+        this.applyCharacterPlacement({ territoryId: normalized, character });
     }
 
     private setCurrentLocation(locationId: string | null): void {
@@ -395,21 +445,40 @@ export class GameEngineStore {
         this.territoryLookup.set(territory.id, territory);
     }
 
-    private updateCharacterPlacement(
-        character: ExpeditionMapCharacterConfig,
-        territoryId: string,
-    ): void {
-        const placement: ExpeditionMapCharacterPlacement = { territoryId, character };
-        const characters = this.config.mapConfig.characters ?? [];
-        const existingIndex = characters.findIndex((entry) => entry.character.id === character.id);
+    private applyCharacterPlacement(placement: ExpeditionMapCharacterPlacement): void {
+        const normalized = normalizePlacement(placement);
+        const characters = [...this.state.map.characterPlacements];
+        const existingIndex = characters.findIndex((entry) => entry.character.id === normalized.character.id);
 
         if (existingIndex >= 0) {
-            characters[existingIndex] = placement;
+            characters[existingIndex] = normalized;
         } else {
-            characters.push(placement);
+            characters.push(normalized);
         }
 
-        this.config.mapConfig.characters = characters;
+        this.state = {
+            ...this.state,
+            map: {
+                ...this.state.map,
+                characterPlacements: characters,
+            },
+        };
+
+        const configCharacters = this.config.mapConfig.characters ?? [];
+        const configIndex = configCharacters.findIndex((entry) => entry.character.id === normalized.character.id);
+        if (configIndex >= 0) {
+            configCharacters[configIndex] = normalized;
+        } else {
+            configCharacters.push(normalized);
+        }
+        this.config.mapConfig.characters = configCharacters;
+    }
+
+    private applyDeckState(deck: EventDeckState): void {
+        this.state = {
+            ...this.state,
+            deck: cloneDeckState(deck),
+        };
     }
 
     private buildViewModel(): GameViewModel {
@@ -426,6 +495,12 @@ export class GameEngineStore {
             hand: this.hand,
             victoryProgress: { ...this.state.victoryProgress },
             defeatProgress: { ...this.state.defeatProgress },
+            map: {
+                territories: cloneTerritories(this.config.mapConfig.territories),
+                revealedTerritoryIds: [...this.state.map.revealedTerritoryIds],
+                characterPlacements: cloneCharacterPlacements(this.state.map.characterPlacements),
+            },
+            deck: this.state.deck ? cloneDeckState(this.state.deck) : undefined,
         };
     }
 
@@ -464,6 +539,85 @@ export class GameEngineStore {
     private findCardByInstanceId(instanceId: string): HandCardContent | undefined {
         return this.hand.find((card) => card.instanceId === instanceId);
     }
+}
+
+function cloneTerritories(territories: readonly TerritoryConfig[]): TerritoryConfig[] {
+    return territories.map((territory) => ({
+        ...territory,
+        back: { ...territory.back },
+        front: { ...territory.front },
+        connections: territory.connections.map((connection) => ({ ...connection })),
+        position: territory.position ? { ...territory.position } : undefined,
+    }));
+}
+
+function cloneCharacterPlacements(
+    placements: readonly ExpeditionMapCharacterPlacement[],
+): ExpeditionMapCharacterPlacement[] {
+    return placements.map((placement) => ({
+        territoryId: placement.territoryId,
+        character: { ...placement.character },
+    }));
+}
+
+function normalizePlacement(placement: ExpeditionMapCharacterPlacement): ExpeditionMapCharacterPlacement {
+    return {
+        territoryId: placement.territoryId,
+        character: { ...placement.character },
+    };
+}
+
+function cloneDeckState(state: EventDeckState): EventDeckState {
+    return {
+        draw: { ...state.draw },
+        drawPile: state.drawPile.map((card) => ({ ...card })),
+        revealed: state.revealed.map((card) => ({ ...card })),
+        discardPile: state.discardPile.map((card) => ({ ...card })),
+        status: state.status ? { ...state.status } : undefined,
+    };
+}
+
+function drawCardsFromDeck(
+    state: EventDeckState,
+    count: number,
+): { drawn: EventDeckCardConfig[]; deck: EventDeckState } {
+    const normalized = Math.max(0, Math.floor(count));
+    const deck = cloneDeckState(state);
+
+    if (normalized === 0) {
+        return { drawn: [], deck };
+    }
+
+    const actual = Math.min(normalized, deck.drawPile.length);
+    const drawn = deck.drawPile.splice(0, actual);
+    deck.revealed = [...deck.revealed, ...drawn];
+
+    return { drawn, deck };
+}
+
+function createDeckEmptyStatus(state: EventDeckState): EventDeckStatus {
+    if (state.discardPile.length > 0) {
+        return {
+            message: "Колода пуста. Перемешайте сброс, чтобы продолжить.",
+            variant: "warn",
+        };
+    }
+
+    return {
+        message: "Колода иссякла — новых событий не осталось.",
+        variant: "warn",
+    };
+}
+
+function shuffleCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
+    const clone = cards.map((card) => ({ ...card }));
+    for (let index = clone.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        const temp = clone[index];
+        clone[index] = clone[swapIndex];
+        clone[swapIndex] = temp;
+    }
+    return clone;
 }
 
 function findTerritory(mapConfig: ExpeditionMapConfig, id: string): TerritoryConfig | undefined {
@@ -590,9 +744,10 @@ export class EndTurnCommand implements GameCommand {
 
         let drawn = 0;
         let userMessageHandled = false;
+        let deckEvent: GameEvent | undefined;
 
-        const deck = context.eventDeck;
-        if (!deck) {
+        const deckState = context.state.deck;
+        if (!deckState) {
             events.push({ type: "log", channel: "system", message: "turn:end:event_deck:missing" });
             events.push({
                 type: "log",
@@ -604,14 +759,24 @@ export class EndTurnCommand implements GameCommand {
             events.push({ type: "log", channel: "system", message: "turn:end:event_deck:skipped:no_players" });
             userMessageHandled = true;
         } else {
-            const cards = deck.revealEvents(context.playerCount);
-            drawn = cards.length;
+            const result = drawCardsFromDeck(deckState, context.playerCount);
+            const drawnCards = result.drawn;
+            drawn = drawnCards.length;
 
             if (drawn === 0) {
                 events.push({ type: "log", channel: "system", message: "turn:end:event_deck:empty" });
                 events.push({ type: "log", channel: "user", message: "Новых событий не произошло." });
                 userMessageHandled = true;
+                result.deck.status = createDeckEmptyStatus(deckState);
+            } else {
+                const noun = resolveEventNoun(drawn);
+                result.deck.status = {
+                    message: `Открыто ${drawn} ${noun}.`,
+                    variant: "success",
+                };
             }
+
+            deckEvent = { type: "eventDeck:revealed", deck: result.deck, drawn: drawnCards };
         }
 
         if (drawn > 0) {
@@ -623,6 +788,10 @@ export class EndTurnCommand implements GameCommand {
             if (!userMessageHandled) {
                 events.push({ type: "log", channel: "user", message: "Новых событий не произошло." });
             }
+        }
+
+        if (deckEvent) {
+            events.push(deckEvent);
         }
 
         events.push({ type: "actions:update", actionsRemaining: context.initialActions });
@@ -812,14 +981,43 @@ export class PlaceDebugCharacterCommand extends BaseGameEngineStoreCommand {
 
 export class TriggerEventDeckCommand extends BaseGameEngineStoreCommand {
     execute(context: GameEngineStoreContext): GameEvent[] {
-        if (!context.eventDeck) {
+        const deckState = context.state.deck;
+        if (!deckState) {
             return [
                 { type: "log", channel: "system", message: "event_deck:trigger:missing" },
             ];
         }
 
+        const drawConfig = deckState.draw;
+        const min = Math.max(0, Math.floor(drawConfig.min));
+        const max = Math.max(min, Math.floor(drawConfig.max));
+        const range = max - min + 1;
+        const drawCount = min + Math.floor(Math.random() * range);
+
+        if (drawCount === 0) {
+            const snapshot = cloneDeckState(deckState);
+            snapshot.status = {
+                message: "Судьба молчит, новых событий нет.",
+                variant: "warn",
+            };
+            return [
+                { type: "eventDeck:triggered", deck: snapshot, drawn: [] },
+                { type: "log", channel: "system", message: "event_deck:triggered" },
+            ];
+        }
+
+        const result = drawCardsFromDeck(deckState, drawCount);
+        if (result.drawn.length === 0) {
+            result.deck.status = createDeckEmptyStatus(deckState);
+        } else {
+            result.deck.status = {
+                message: `Открыто новых событий: ${result.drawn.length}.`,
+                variant: "success",
+            };
+        }
+
         return [
-            { type: "eventDeck:triggered" },
+            { type: "eventDeck:triggered", deck: result.deck, drawn: result.drawn },
             { type: "log", channel: "system", message: "event_deck:triggered" },
         ];
     }
@@ -827,14 +1025,36 @@ export class TriggerEventDeckCommand extends BaseGameEngineStoreCommand {
 
 export class ReshuffleEventDeckCommand extends BaseGameEngineStoreCommand {
     execute(context: GameEngineStoreContext): GameEvent[] {
-        if (!context.eventDeck) {
+        const deckState = context.state.deck;
+        if (!deckState) {
             return [
                 { type: "log", channel: "system", message: "event_deck:reshuffle:missing" },
             ];
         }
 
+        if (deckState.discardPile.length === 0) {
+            const snapshot = cloneDeckState(deckState);
+            snapshot.status = {
+                message: "Сброс пуст — нечего перемешивать.",
+                variant: "warn",
+            };
+            return [
+                { type: "eventDeck:reshuffled", deck: snapshot },
+                { type: "log", channel: "system", message: "event_deck:reshuffle:empty" },
+            ];
+        }
+
+        const snapshot = cloneDeckState(deckState);
+        const recycled = shuffleCards(deckState.discardPile);
+        snapshot.drawPile = [...snapshot.drawPile, ...recycled];
+        snapshot.discardPile = [];
+        snapshot.status = {
+            message: "Карты из сброса возвращены в стопку.",
+            variant: "success",
+        };
+
         return [
-            { type: "eventDeck:reshuffled" },
+            { type: "eventDeck:reshuffled", deck: snapshot },
             { type: "log", channel: "system", message: "event_deck:reshuffled" },
         ];
     }

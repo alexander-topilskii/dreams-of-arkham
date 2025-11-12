@@ -12,7 +12,7 @@ import rulesSource from "./data/rules.json";
 import mapSource from "./data/map.json";
 import eventDeckSource from "./data/event-deck.json";
 import characterSource from "./data/character.json";
-import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck";
+import { EventDeck, type EventDeckCardConfig, type EventDeckConfig } from "./widgets/event-deck/event-deck";
 import { CharacterCard, type CharacterCardState } from "./widgets/character-card/character-card";
 import {
     ExpeditionMap,
@@ -29,8 +29,11 @@ import {
     UpdateVictoryProgressCommand,
     type GameProgressSlice,
     type GameViewModel,
+    type EventDeckState,
 } from "./widgets/game-engine/game-engine-store";
 import type { HandCardDefinition } from "./widgets/game-engine/game-engine-cards";
+import { GameEngineMapAdapter } from "./widgets/game-engine/game-engine-map-adapter";
+import { GameEngineEventDeckAdapter } from "./widgets/game-engine/game-engine-event-deck-adapter";
 
 type CardsConfig = {
     initialHand: HandCardDefinition[];
@@ -80,6 +83,31 @@ type CharacterData = Omit<CharacterCardState, 'portraitUrl'> & {
     id: string;
     portrait?: string;
 };
+
+function createInitialDeckState(config: EventDeckConfig): EventDeckState {
+    const drawMin = Math.max(0, Math.floor(config.draw.min));
+    const drawMax = Math.max(drawMin, Math.floor(config.draw.max));
+    const drawPile = shuffleDeckCards(config.cards);
+
+    return {
+        draw: { min: drawMin, max: drawMax },
+        drawPile,
+        revealed: [],
+        discardPile: [],
+        status: { message: 'Готово к вызову событий.' },
+    };
+}
+
+function shuffleDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
+    const clone = cards.map((card) => ({ ...card }));
+    for (let index = clone.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        const temp = clone[index];
+        clone[index] = clone[swapIndex];
+        clone[swapIndex] = temp;
+    }
+    return clone;
+}
 
 const cardsConfig = cardsSource as CardsConfig;
 const rulesConfig = rulesSource as RulesConfig;
@@ -149,6 +177,7 @@ const expeditionMap = new ExpeditionMap(mapContainer, expeditionMapConfig);
 
 const eventDeckRoot = document.getElementById('right-top');
 const eventDeck = new EventDeck(eventDeckRoot, eventDeckConfig);
+const initialDeckState = createInitialDeckState(eventDeckConfig);
 
 const engineRoot = document.getElementById('right-bottom');
 const gameEngineStore = new GameEngineStore(
@@ -158,20 +187,26 @@ const gameEngineStore = new GameEngineStore(
             name: initialCharacterState.name,
             image: portrait,
         },
-        map: expeditionMap,
         mapConfig: expeditionMapConfig,
         initialActions: initialCharacterState.actionPoints,
         playerCount: 1,
-        eventDeck,
-        onActionsChange: (actions) => {
-            characterCard.setState({ actionPoints: actions })
-        },
+        initialDeckState,
     },
     {
         initialHand: cardsConfig.initialHand,
         createDebugCard: () => createRandomCard(),
     },
 );
+
+const mapAdapter = new GameEngineMapAdapter(gameEngineStore, expeditionMap);
+const eventDeckAdapter = new GameEngineEventDeckAdapter(gameEngineStore, eventDeck);
+
+let latestViewModel: GameViewModel = gameEngineStore.getViewModel();
+
+gameEngineStore.subscribe((_event, viewModel) => {
+    latestViewModel = viewModel;
+    characterCard.setState({ actionPoints: viewModel.actionsRemaining });
+});
 
 const gameEngineDebug = new GameEngineDebugFacade(gameEngineStore);
 
@@ -192,8 +227,6 @@ const gameLoopPanel = new GameLoopPanel(gameLoopRoot, {
     victoryPhases,
     defeatPhases,
 });
-
-let latestViewModel: GameViewModel = gameEngineStore.getViewModel();
 
 const debugPanel = new DebugPanel(null, { title: 'Debug панель' });
 new DraggableContainer(debugPanel.element, {
