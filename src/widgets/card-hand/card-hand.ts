@@ -33,6 +33,7 @@ export type CardHandOptions = {
     onMoveCardDropFailure?: (card: CardHandCard, territoryId: string, message?: string) => void
     onMoveCardTargetMissing?: (card: CardHandCard) => void
     onCardConsumed?: (card: CardHandCard) => void
+    onEndTurn?: () => void | Promise<void>
 }
 
 type PointerSwipeState = {
@@ -72,10 +73,12 @@ export class CardHand {
     private readonly onMoveCardDropFailure?: CardHandOptions['onMoveCardDropFailure']
     private readonly onMoveCardTargetMissing?: CardHandOptions['onMoveCardTargetMissing']
     private readonly onCardConsumed?: CardHandOptions['onCardConsumed']
+    private readonly onEndTurn?: CardHandOptions['onEndTurn']
 
     private readonly panel: HTMLDivElement
     private readonly header: HTMLDivElement
     private readonly instructionsLabel: HTMLDivElement
+    private readonly endTurnButton: HTMLButtonElement
     private readonly progressLabel: HTMLDivElement
     private readonly viewport: HTMLDivElement
     private readonly strip: HTMLDivElement
@@ -90,6 +93,7 @@ export class CardHand {
     private pointerSwipe?: PointerSwipeState
     private scrollSnapTimer?: number
     private activeDrag?: ActiveCardDrag
+    private endTurnPending = false
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
         this.ownsRoot = !root
@@ -104,6 +108,7 @@ export class CardHand {
         this.onMoveCardDropFailure = options.onMoveCardDropFailure
         this.onMoveCardTargetMissing = options.onMoveCardTargetMissing
         this.onCardConsumed = options.onCardConsumed
+        this.onEndTurn = options.onEndTurn
 
         this.root.classList.add('card-hand-widget')
         this.root.innerHTML = ''
@@ -125,10 +130,17 @@ export class CardHand {
         this.instructionsLabel.className = 'card-hand-widget__instructions'
         this.instructionsLabel.textContent = 'Перетащите карту действия на карту экспедиции'
 
+        this.endTurnButton = document.createElement('button')
+        this.endTurnButton.type = 'button'
+        this.endTurnButton.className = 'card-hand-widget__end-turn'
+        this.endTurnButton.textContent = 'Закончить ход'
+        this.endTurnButton.addEventListener('click', this.handleEndTurnClick)
+        this.endTurnButton.disabled = !this.onEndTurn
+
         this.progressLabel = document.createElement('div')
         this.progressLabel.className = 'card-hand-widget__progress'
 
-        this.header.append(this.instructionsLabel, this.progressLabel)
+        this.header.append(this.instructionsLabel, this.endTurnButton, this.progressLabel)
 
         this.panel.appendChild(this.header)
 
@@ -250,6 +262,7 @@ export class CardHand {
         this.viewport.removeEventListener('pointerdown', this.handleViewportPointerDown)
         this.viewport.removeEventListener('pointerup', this.handleViewportPointerUp)
         this.viewport.removeEventListener('pointermove', this.handleViewportPointerMove)
+        this.endTurnButton.removeEventListener('click', this.handleEndTurnClick)
 
         if (this.scrollSnapTimer) {
             window.clearTimeout(this.scrollSnapTimer)
@@ -357,6 +370,25 @@ export class CardHand {
         } else if (event.key === 'ArrowLeft') {
             event.preventDefault()
             this.nudge(-1)
+        }
+    }
+    private handleEndTurnClick = async () => {
+        if (!this.onEndTurn || this.endTurnPending) {
+            return
+        }
+
+        this.endTurnPending = true
+        this.endTurnButton.disabled = true
+        this.endTurnButton.classList.add('card-hand-widget__end-turn--pending')
+
+        try {
+            await this.onEndTurn()
+        } catch (error) {
+            console.error('CardHand: failed to end turn', error)
+        } finally {
+            this.endTurnPending = false
+            this.endTurnButton.disabled = false
+            this.endTurnButton.classList.remove('card-hand-widget__end-turn--pending')
         }
     }
     private handleCardPointerDown(card: InternalCard, event: PointerEvent) {
@@ -814,6 +846,44 @@ export class CardHand {
                 text-overflow: ellipsis;
                 overflow: hidden;
                 white-space: nowrap;
+            }
+
+            .card-hand-widget__end-turn {
+                flex-shrink: 0;
+                border-radius: 999px;
+                border: 1px solid rgba(250, 204, 21, 0.4);
+                background: rgba(250, 204, 21, 0.12);
+                color: rgba(254, 249, 195, 0.95);
+                font-size: 12px;
+                font-weight: 600;
+                letter-spacing: 0.05em;
+                text-transform: uppercase;
+                padding: 6px 14px;
+                transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+                cursor: pointer;
+            }
+
+            .card-hand-widget__end-turn:hover {
+                background: rgba(250, 204, 21, 0.2);
+                border-color: rgba(250, 204, 21, 0.55);
+                box-shadow: 0 8px 18px rgba(250, 204, 21, 0.18);
+                transform: translateY(-1px);
+            }
+
+            .card-hand-widget__end-turn:focus-visible {
+                outline: none;
+                box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45);
+            }
+
+            .card-hand-widget__end-turn:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+                box-shadow: none;
+                transform: none;
+            }
+
+            .card-hand-widget__end-turn--pending {
+                opacity: 0.75;
             }
 
             .card-hand-widget__progress {

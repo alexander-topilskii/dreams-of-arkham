@@ -1,3 +1,4 @@
+import { EventDeck } from "../event-deck/event-deck";
 import { ExpeditionMap, type ExpeditionMapConfig, type TerritoryConfig } from "../expedition-map/expedition-map";
 
 const STYLE_ID = "game-engine-widget-styles";
@@ -124,6 +125,8 @@ export type GameEngineConfig = {
     map: ExpeditionMap;
     mapConfig: ExpeditionMapConfig;
     initialActions: number;
+    playerCount?: number;
+    eventDeck?: EventDeck;
     onActionsChange?: (actions: number) => void;
 };
 
@@ -158,6 +161,9 @@ export class GameEngine {
     private readonly root: HTMLElement;
     private readonly config: GameEngineConfig;
     private readonly territoryLookup = new Map<string, TerritoryConfig>();
+    private readonly eventDeck?: EventDeck;
+    private readonly playerCount: number;
+    private readonly initialActions: number;
 
     private readonly userLogList: HTMLUListElement;
     private readonly systemLogList: HTMLUListElement;
@@ -172,6 +178,14 @@ export class GameEngine {
     constructor(root: HTMLElement | null | undefined, config: GameEngineConfig) {
         this.root = root ?? document.createElement("div");
         this.config = config;
+        this.eventDeck = config.eventDeck;
+
+        const configuredPlayerCount = config.playerCount;
+        const normalizedPlayerCount =
+            typeof configuredPlayerCount === "number" && Number.isFinite(configuredPlayerCount)
+                ? Math.max(1, Math.floor(configuredPlayerCount))
+                : 1;
+        this.playerCount = normalizedPlayerCount;
 
         for (const territory of config.mapConfig.territories) {
             this.territoryLookup.set(territory.id, territory);
@@ -180,7 +194,8 @@ export class GameEngine {
         const initialActions = Number.isFinite(config.initialActions)
             ? Math.max(0, Math.floor(config.initialActions))
             : 0;
-        this.state = { currentLocationId: null, actionsRemaining: initialActions };
+        this.initialActions = initialActions;
+        this.state = { currentLocationId: null, actionsRemaining: this.initialActions };
 
         this.config.onActionsChange?.(this.state.actionsRemaining);
 
@@ -253,6 +268,31 @@ export class GameEngine {
         this.render();
     }
 
+    public endTurn(): void {
+        const playerName = this.config.player.name;
+        this.logUserMessage(`${playerName} завершает ход.`);
+        this.logSystemMessage(`turn:end:start:${playerName}`);
+
+        const { drawn, userMessageHandled } = this.resolveEndTurnEvents();
+
+        if (drawn > 0) {
+            const noun = this.resolveEventNoun(drawn);
+            this.logUserMessage(`Судьба раскрывает ${drawn} ${noun}.`);
+            this.logSystemMessage(`turn:end:events:${drawn}`);
+        } else {
+            this.logSystemMessage("turn:end:events:0");
+            if (!userMessageHandled) {
+                this.logUserMessage("Новых событий не произошло.");
+            }
+        }
+
+        this.updateActions(this.initialActions);
+        this.logUserMessage(`Очки действий восстановлены до ${this.initialActions}.`);
+        this.logSystemMessage(`turn:end:actions_reset:${this.initialActions}`);
+
+        this.render();
+    }
+
     public logUserMessage(message: string): void {
         this.userHistory.push(message);
     }
@@ -269,6 +309,46 @@ export class GameEngine {
         const normalized = Math.max(0, actions);
         this.state = { ...this.state, actionsRemaining: normalized };
         this.config.onActionsChange?.(this.state.actionsRemaining);
+    }
+
+    private resolveEndTurnEvents(): { drawn: number; userMessageHandled: boolean } {
+        const deck = this.eventDeck;
+
+        if (!deck) {
+            this.logSystemMessage("turn:end:event_deck:missing");
+            this.logUserMessage("Колода событий недоступна — этап событий пропущен.");
+            return { drawn: 0, userMessageHandled: true };
+        }
+
+        if (this.playerCount <= 0) {
+            this.logSystemMessage("turn:end:event_deck:skipped:no_players");
+            return { drawn: 0, userMessageHandled: true };
+        }
+
+        const cards = deck.revealEvents(this.playerCount);
+
+        if (cards.length === 0) {
+            this.logSystemMessage("turn:end:event_deck:empty");
+            this.logUserMessage("Новых событий не произошло.");
+            return { drawn: 0, userMessageHandled: true };
+        }
+
+        return { drawn: cards.length, userMessageHandled: false };
+    }
+
+    private resolveEventNoun(amount: number): string {
+        const mod10 = amount % 10;
+        const mod100 = amount % 100;
+
+        if (mod10 === 1 && mod100 !== 11) {
+            return "событие";
+        }
+
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+            return "события";
+        }
+
+        return "событий";
     }
 
     public attemptMoveWithCard(card: MoveCardDescriptor, targetLocationId: string): MoveAttemptResult {

@@ -8,6 +8,7 @@
 - Золотое подсвечивание при наведении и мягкие анимации появления/исчезновения карт.
 - Перетаскивание карт с эффектом `move`: появляется направленная стрелка, карта «поднимается», падение вне допустимых целей подсвечивает ошибку и встряхивает карту.
 - Коллбэки `onMoveCardDrop`, `onMoveCardDropFailure`, `onMoveCardTargetMissing`, `onCardConsumed` и `onViewportChange` для синхронизации с игровым движком и другими модулями.
+- Кнопка «Закончить ход» с коллбэком `onEndTurn`, передающим управление игровому движку.
 - Поддержка дубликатов благодаря `instanceId`, который можно передать вручную или оставить автогенерацию.
 
 ## API
@@ -24,6 +25,7 @@ new CardHand(root?: HTMLElement | null, options?: {
     onMoveCardDropFailure?: (card: CardHandCard, territoryId: string, message?: string) => void;
     onMoveCardTargetMissing?: (card: CardHandCard) => void;
     onCardConsumed?: (card: CardHandCard) => void;
+    onEndTurn?: () => void | Promise<void>;
 })
 
 type CardHandCard = {
