@@ -82,6 +82,11 @@ export type GameViewModel = {
     readonly userLog: readonly string[];
     readonly systemLog: readonly string[];
     readonly hand: readonly HandCardContent[];
+    readonly handDeck: {
+        readonly drawPileCount: number;
+        readonly discardPileCount: number;
+        readonly handSize: number;
+    };
     readonly victoryProgress: Readonly<GameProgressSlice>;
     readonly defeatProgress: Readonly<GameProgressSlice>;
     readonly map: GameMapViewModel;
@@ -101,6 +106,7 @@ export type GameEvent =
     | { type: "card:added"; card: HandCardContent; reason?: "draw" | "debug" | "manual" }
     | { type: "card:consumed"; card: HandCardContent; reason?: "consume" | "discard" | "debug" }
     | { type: "hand:sync"; hand: readonly HandCardContent[] }
+    | { type: "hand:refill" }
     | { type: "progress:victoryUpdate"; progress: GameProgressSlice }
     | { type: "progress:defeatUpdate"; progress: GameProgressSlice }
     | { type: "map:territoryAdded"; territory: TerritoryConfig }
@@ -151,7 +157,8 @@ export abstract class BaseGameEngineStoreCommand implements GameEngineStoreComma
 }
 
 export type GameEngineStoreOptions = {
-    readonly initialHand?: readonly HandCardDefinition[];
+    readonly initialDeck?: readonly HandCardDefinition[];
+    readonly handSize?: number;
     readonly createDebugCard?: () => HandCardDefinition | undefined;
 };
 
@@ -173,6 +180,9 @@ export class GameEngineStore {
     private initialized = false;
     private state: GameEngineState;
     private hand: readonly HandCardContent[];
+    private drawPile: HandCardDefinition[];
+    private discardPile: HandCardDefinition[];
+    private readonly handSize: number;
     private viewModel: GameViewModel;
 
     constructor(config: GameEngineConfig, options: GameEngineStoreOptions = {}) {
@@ -195,8 +205,10 @@ export class GameEngineStore {
             : 0;
         this.initialActions = initialActions;
 
-        const initialHand = (options.initialHand ?? []).map((definition) => this.createCardContent(definition));
-        this.hand = initialHand;
+        this.handSize = Math.max(0, Math.floor(options.handSize ?? 3));
+        this.drawPile = normalizeHandDefinitions(options.initialDeck ?? []);
+        this.discardPile = [];
+        this.hand = this.drawCardsFromDeck(this.handSize);
 
         this.state = {
             currentLocationId: null,
@@ -313,10 +325,17 @@ export class GameEngineStore {
             }
             case "card:consumed": {
                 this.hand = this.hand.filter((card) => card.instanceId !== event.card.instanceId);
+                this.discardCard(event.card);
                 break;
             }
             case "hand:sync": {
                 this.hand = [...event.hand];
+                break;
+            }
+            case "hand:refill": {
+                this.discardHandCards();
+                this.hand = [];
+                this.hand = this.drawCardsFromDeck(this.handSize);
                 break;
             }
             case "progress:victoryUpdate": {
@@ -495,6 +514,7 @@ export class GameEngineStore {
             userLog: this.state.userLog,
             systemLog: this.state.systemLog,
             hand: this.hand,
+            handDeck: this.buildHandDeckView(),
             victoryProgress: { ...this.state.victoryProgress },
             defeatProgress: { ...this.state.defeatProgress },
             map: {
@@ -541,6 +561,76 @@ export class GameEngineStore {
     private findCardByInstanceId(instanceId: string): HandCardContent | undefined {
         return this.hand.find((card) => card.instanceId === instanceId);
     }
+
+    private drawCardsFromDeck(requestedCount: number): HandCardContent[] {
+        const normalized = Math.max(0, Math.floor(requestedCount));
+        const drawn: HandCardContent[] = [];
+
+        for (let index = 0; index < normalized; index += 1) {
+            const definition = this.takeCardFromDrawPile();
+            if (!definition) {
+                break;
+            }
+            drawn.push(this.createCardContent(definition));
+        }
+
+        return drawn;
+    }
+
+    private takeCardFromDrawPile(): HandCardDefinition | undefined {
+        if (this.drawPile.length === 0) {
+            if (this.discardPile.length === 0) {
+                return undefined;
+            }
+
+            this.drawPile = shuffleHandDefinitions(this.discardPile);
+            this.discardPile = [];
+        }
+
+        const next = this.drawPile.shift();
+        return next ? { ...next } : undefined;
+    }
+
+    private discardHandCards(): void {
+        if (this.hand.length === 0) {
+            return;
+        }
+
+        const discarded = this.hand.map((card) => toHandDefinition(card));
+        this.discardPile = [...this.discardPile, ...discarded];
+    }
+
+    private discardCard(card: HandCardContent): void {
+        this.discardPile = [...this.discardPile, toHandDefinition(card)];
+    }
+
+    private buildHandDeckView(): { drawPileCount: number; discardPileCount: number; handSize: number } {
+        return {
+            drawPileCount: this.drawPile.length,
+            discardPileCount: this.discardPile.length,
+            handSize: this.handSize,
+        };
+    }
+}
+
+function normalizeHandDefinitions(definitions: readonly HandCardDefinition[]): HandCardDefinition[] {
+    return definitions.map((definition) => ({ ...definition }));
+}
+
+function toHandDefinition(card: HandCardContent): HandCardDefinition {
+    const { instanceId, ...definition } = card;
+    return { ...definition };
+}
+
+function shuffleHandDefinitions(definitions: readonly HandCardDefinition[]): HandCardDefinition[] {
+    const clone = definitions.map((definition) => ({ ...definition }));
+    for (let index = clone.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        const temp = clone[index];
+        clone[index] = clone[swapIndex];
+        clone[swapIndex] = temp;
+    }
+    return clone;
 }
 
 function cloneTerritories(territories: readonly TerritoryConfig[]): TerritoryConfig[] {
@@ -751,8 +841,8 @@ export class MoveWithCardCommand implements GameCommand {
     }
 }
 
-export class EndTurnCommand implements GameCommand {
-    public execute(context: GameEngineContext): GameEvent[] {
+export class EndTurnCommand extends BaseGameEngineStoreCommand {
+    public execute(context: GameEngineStoreContext): GameEvent[] {
         const events: GameEvent[] = [];
         const playerName = context.config.player.name;
 
@@ -822,6 +912,8 @@ export class EndTurnCommand implements GameCommand {
             channel: "system",
             message: `turn:end:actions_reset:${context.initialActions}`,
         });
+
+        events.push({ type: "hand:refill" });
 
         events.push({ type: "turn:ended", actionsRemaining: context.initialActions, drawnEvents: drawn });
 

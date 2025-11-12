@@ -1,5 +1,5 @@
 {
-  "initialHand": [
+  "initialDeck": [
     {
       "id": "walk",
       "title": "Прогуляться",

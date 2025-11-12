@@ -39,7 +39,7 @@ import { GameEngineMapAdapter } from "./widgets/game-engine/game-engine-map-adap
 import { GameEngineEventDeckAdapter } from "./widgets/game-engine/game-engine-event-deck-adapter";
 
 type CardsConfig = {
-    initialHand: HandCardDefinition[];
+    initialDeck: HandCardDefinition[];
 };
 
 type VictoryProgress = {
@@ -171,7 +171,7 @@ const gameEngineStore = new GameEngineStore(
         initialDeckState,
     },
     {
-        initialHand: cardsConfig.initialHand,
+        initialDeck: cardsConfig.initialDeck,
         createDebugCard: () => createRandomCard(),
     },
 );

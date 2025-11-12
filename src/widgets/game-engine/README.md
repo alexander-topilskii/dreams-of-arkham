@@ -28,13 +28,13 @@ GameEngineWidget & GameEngineStore
 ## Behavior
 ### GameEngineStore
 - Создаётся с `GameEngineConfig` (игрок, конфигурация карты, снимок колоды событий, счётчик игроков) и опциями руки
-  (`initialHand`, фабрика debug-карт).
+  (`initialDeck`, `handSize`, фабрика debug-карт).
 - `initialize()` вычисляет стартовую территорию и диспатчит `EnterLocationCommand`, уведомляя всех подписчиков.
 - `dispatch(command)` выполняет `GameCommand`/`GameEngineStoreCommand`, применяет каждое `GameEvent`, обновляет сторадж и уведомляет
   подписчиков свежим `GameViewModel`.
 - `subscribe(listener)` мгновенно отправляет `state:sync` с текущим вью-моделом и возвращает disposer.
-- Формирует срезы `map` и `deck` во `viewModel` (открытые территории, размещённые персонажи, стопки событий); UI-адаптеры подписываются
-  на стор и синхронизируют `ExpeditionMap` и `EventDeck` с опубликованными данными.
+- Формирует срезы `map`, `deck` и `handDeck` во `viewModel` (открытые территории, размещённые персонажи, стопки событий и карты
+  игрока); UI-адаптеры подписываются на стор и синхронизируют `ExpeditionMap`, `EventDeck` и `CardHand` с опубликованными данными.
 - Манипулирует колодой исключительно через команды: `TriggerEventDeckCommand`, `RevealEventsCommand`, `DiscardRevealedEventCommand`,
   `ReshuffleEventDeckCommand`. Каждая из них использует утилиты `drawCardsFromDeck` и `shuffleCards`, чтобы применять мутации через `dispatch`.
 
@@ -52,6 +52,7 @@ GameEngineWidget & GameEngineStore
 - `move:success` / `move:failure` — результат `MoveWithCardCommand` вместе с сообщением об ошибке.
 - `turn:ended` — сводка конца хода с восстановленными очками действий и количеством вытянутых событий.
 - `card:added` / `card:consumed` / `hand:sync` — синхронизация руки (используется `CardHandController`).
+- `hand:refill` — полный сброс и добор руки из личной колоды.
 
 ## API (Store)
 | Name | Type | Default | Description |
@@ -61,7 +62,8 @@ GameEngineWidget & GameEngineStore
 | `initialDeckState` | `EventDeckState` | — | Начальный снимок колоды событий (стопка, раскрытые, сброс и сообщение статуса). |
 | `initialActions` | `number` | — | Стартовое количество действий. |
 | `playerCount` | `number` | `1` | Число следователей — определяет, сколько событий вытягивается в конце хода. |
-| `initialHand` | `HandCardDefinition[]` | `[]` | (опция стора) Начальная рука игрока. |
+| `initialDeck` | `HandCardDefinition[]` | `[]` | (опция стора) Исходная колода, из которой добирается рука. |
+| `handSize` | `number` | `3` | (опция стора) Целевое количество карт в руке после добора. |
 | `createDebugCard` | `() => HandCardDefinition \| undefined` | — | (опция стора) Фабрика отладочных карт. |
 | `initialize()` | `() => void` | — | Одноразовая инициализация (безопасно вызывать повторно). |
 | `dispatch(command)` | `(GameCommand \| GameEngineStoreCommand) => GameEvent[]` | — | Выполняет команду и возвращает сгенерированные события. |
@@ -111,6 +113,7 @@ import { EventDeck } from './widgets/event-deck/event-deck';
 const map = new ExpeditionMap(mapContainer, mapConfig);
 const deck = new EventDeck(deckContainer, deckConfig);
 const initialDeckState = createInitialDeckStateFromConfig(deckConfig);
+const initialDeck = loadPlayerDeck(); // HandCardDefinition[]
 const store = new GameEngineStore(
     {
         player,
@@ -118,7 +121,7 @@ const store = new GameEngineStore(
         initialActions: 3,
         initialDeckState,
     },
-    { initialHand },
+    { initialDeck, handSize: 4 },
 );
 const mapAdapter = new GameEngineMapAdapter(store, map);
 const deckAdapter = new GameEngineEventDeckAdapter(store, deck);

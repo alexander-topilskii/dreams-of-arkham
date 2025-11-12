@@ -23,6 +23,7 @@ type CardHandDropResult =
 - `setCards(cards)` — полная перерисовка колоды (используйте `instanceId` для стабильного отображения).
 - `addCard(card)` — анимированное добавление в конец и автопрокрутка к карте.
 - `removeCard(id)` — плавное удаление по `instanceId` с корректировкой ленты.
+- `setDeckInfo(info)` — отображает количество карт в личной колоде и сбросе.
 - `focus()` — прокручивает панель к активной карте и подсвечивает контейнер.
 - `destroy()` — снимает события и очищает/удаляет корневой элемент.
 
@@ -38,7 +39,8 @@ import {
     EndTurnCommand,
 } from './widgets/game-engine/game-engine-store';
 
-const store = new GameEngineStore(engineConfig, { initialHand });
+const initialDeck = cardsConfig.initialDeck;
+const store = new GameEngineStore(engineConfig, { initialDeck, handSize: 3 });
 const widget = new GameEngineWidget(document.getElementById('engine'), store);
 store.initialize();
 
@@ -69,4 +71,6 @@ store.dispatch(new EndTurnCommand());
 Для автоматического оверлея передайте `null` в конструктор. Настройте обработчики под свою игровую логику.
 
 ## Внешний вид
-Полупрозрачная панель с мягким свечением. При наведении карта подсвечивается золотом, а при перетаскивании появляется направляющая стрелка. Ошибочный сброс окрашивает карту в красный и сопровождается краткой тряской.
+Полупрозрачная панель с мягким свечением. В шапке отображаются чипы со счётчиками карт в колоде и сбросе. При наведении карта
+подсвечивается золотом, а при перетаскивании появляется направляющая стрелка. Ошибочный сброс окрашивает карту в красный и
+сопровождается краткой тряской.

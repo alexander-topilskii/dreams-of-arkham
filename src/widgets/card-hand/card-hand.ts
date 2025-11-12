@@ -21,6 +21,11 @@ export type CardHandDropResult =
     | { status: 'success' }
     | { status: 'error'; message?: string }
 
+export type CardHandDeckInfo = {
+    drawPileCount: number
+    discardPileCount: number
+}
+
 export type CardHandOptions = {
     cards?: CardHandCard[]
     height?: number
@@ -58,6 +63,11 @@ type ActiveCardDrag = {
     originPointerY: number
 }
 
+type ZoneChipElements = {
+    element: HTMLDivElement
+    count: HTMLSpanElement
+}
+
 export class CardHand {
     private static stylesInjected = false
 
@@ -78,6 +88,11 @@ export class CardHand {
     private readonly panel: HTMLDivElement
     private readonly header: HTMLDivElement
     private readonly instructionsLabel: HTMLDivElement
+    private readonly zonesContainer: HTMLDivElement
+    private readonly deckChip: HTMLDivElement
+    private readonly discardChip: HTMLDivElement
+    private readonly deckCountLabel: HTMLSpanElement
+    private readonly discardCountLabel: HTMLSpanElement
     private readonly endTurnButton: HTMLButtonElement
     private readonly progressLabel: HTMLDivElement
     private readonly viewport: HTMLDivElement
@@ -130,6 +145,19 @@ export class CardHand {
         this.instructionsLabel.className = 'card-hand-widget__instructions'
         this.instructionsLabel.textContent = 'Перетащите карту действия на карту экспедиции'
 
+        const deckChipElements = this.createZoneChip('Колода', 'deck')
+        this.deckChip = deckChipElements.element
+        this.deckCountLabel = deckChipElements.count
+
+        const discardChipElements = this.createZoneChip('Сброс', 'discard')
+        this.discardChip = discardChipElements.element
+        this.discardCountLabel = discardChipElements.count
+
+        this.zonesContainer = document.createElement('div')
+        this.zonesContainer.className = 'card-hand-widget__zones'
+        this.zonesContainer.style.display = 'none'
+        this.zonesContainer.append(this.deckChip, this.discardChip)
+
         this.endTurnButton = document.createElement('button')
         this.endTurnButton.type = 'button'
         this.endTurnButton.className = 'card-hand-widget__end-turn'
@@ -140,7 +168,7 @@ export class CardHand {
         this.progressLabel = document.createElement('div')
         this.progressLabel.className = 'card-hand-widget__progress'
 
-        this.header.append(this.instructionsLabel, this.endTurnButton, this.progressLabel)
+        this.header.append(this.instructionsLabel, this.zonesContainer, this.endTurnButton, this.progressLabel)
 
         this.panel.appendChild(this.header)
 
@@ -226,6 +254,21 @@ export class CardHand {
         this.updateLayout()
         this.updateEmptyState()
         this.emitViewport()
+    }
+
+    setDeckInfo(info?: CardHandDeckInfo | null) {
+        if (!info) {
+            this.zonesContainer.style.display = 'none'
+            return
+        }
+
+        this.zonesContainer.style.display = 'flex'
+        this.deckCountLabel.textContent = String(info.drawPileCount)
+        this.discardCountLabel.textContent = String(info.discardPileCount)
+        this.deckChip.title = `В колоде: ${info.drawPileCount}`
+        this.discardChip.title = `В сбросе: ${info.discardPileCount}`
+        this.updateChipEmptyState(this.deckChip, info.drawPileCount === 0)
+        this.updateChipEmptyState(this.discardChip, info.discardPileCount === 0)
     }
 
     removeCard(id: string) {
@@ -772,6 +815,30 @@ export class CardHand {
         return { ...card, instanceId }
     }
 
+    private updateChipEmptyState(chip: HTMLDivElement, isEmpty: boolean) {
+        chip.classList.toggle('card-hand-widget__chip--empty', isEmpty)
+    }
+
+    private createZoneChip(label: string, modifier?: string): ZoneChipElements {
+        const chip = document.createElement('div')
+        chip.className = 'card-hand-widget__chip'
+        if (modifier) {
+            chip.classList.add(`card-hand-widget__chip--${modifier}`)
+        }
+
+        const labelSpan = document.createElement('span')
+        labelSpan.className = 'card-hand-widget__chip-label'
+        labelSpan.textContent = label
+
+        const countSpan = document.createElement('span')
+        countSpan.className = 'card-hand-widget__chip-value'
+        countSpan.textContent = '0'
+
+        chip.append(labelSpan, countSpan)
+
+        return { element: chip, count: countSpan }
+    }
+
     private generateInstanceId(baseId: string): string {
         const normalized = baseId?.trim() ? baseId.trim() : 'card'
         const counter = this.instanceIdCounter++
@@ -846,6 +913,50 @@ export class CardHand {
                 text-overflow: ellipsis;
                 overflow: hidden;
                 white-space: nowrap;
+            }
+
+            .card-hand-widget__zones {
+                display: none;
+                align-items: center;
+                gap: 8px;
+                flex-shrink: 0;
+            }
+
+            .card-hand-widget__chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 4px 10px;
+                border-radius: 999px;
+                border: 1px solid rgba(148, 163, 184, 0.35);
+                background: rgba(30, 41, 59, 0.6);
+                font-size: 12px;
+                color: rgba(226, 232, 240, 0.85);
+                transition: opacity 160ms ease;
+            }
+
+            .card-hand-widget__chip-label {
+                font-weight: 500;
+                letter-spacing: 0.02em;
+            }
+
+            .card-hand-widget__chip-value {
+                font-weight: 600;
+                color: #f8fafc;
+            }
+
+            .card-hand-widget__chip--deck {
+                background: rgba(30, 64, 175, 0.45);
+                border-color: rgba(129, 161, 193, 0.4);
+            }
+
+            .card-hand-widget__chip--discard {
+                background: rgba(94, 51, 73, 0.55);
+                border-color: rgba(244, 114, 182, 0.35);
+            }
+
+            .card-hand-widget__chip--empty {
+                opacity: 0.65;
             }
 
             .card-hand-widget__end-turn {

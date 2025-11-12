@@ -84,6 +84,9 @@ export class CardHandController {
             case "hand:sync":
                 this.syncHand(viewModel);
                 break;
+            case "hand:refill":
+                this.syncHand(viewModel);
+                break;
             case "card:consumed":
                 this.cardHand.removeCard(event.card.instanceId);
                 break;
@@ -99,6 +102,11 @@ export class CardHandController {
     private syncHand(viewModel: GameViewModel): void {
         const cards = viewModel.hand.map((card) => this.toCardHandCard(card));
         this.cardHand.setCards(cards);
+        const deck = viewModel.handDeck;
+        this.cardHand.setDeckInfo({
+            drawPileCount: deck.drawPileCount,
+            discardPileCount: deck.discardPileCount,
+        });
     }
 
     private toCardHandCard(card: HandCardContent): CardHandCard {
