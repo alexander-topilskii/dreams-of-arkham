@@ -219,9 +219,29 @@ const gameLoopPanel = new GameLoopPanel(gameLoopRoot, {
 });
 
 const debugPanel = new DebugPanel(null, { title: 'Debug панель' });
-new DraggableContainer(debugPanel.element, {
+const debugPanelContainer = new DraggableContainer(debugPanel.element, {
     initialPosition: { bottom: 24, right: 24 },
 });
+
+const debugToggleButton = document.createElement('button');
+debugToggleButton.type = 'button';
+debugToggleButton.className = 'debug-panel-toggle';
+debugToggleButton.title = 'Показать или спрятать debug панель';
+document.body.appendChild(debugToggleButton);
+
+let isDebugPanelVisible = false;
+const applyDebugPanelVisibility = () => {
+    debugPanelContainer.element.style.display = isDebugPanelVisible ? 'inline-block' : 'none';
+    debugToggleButton.textContent = isDebugPanelVisible ? 'Спрятать debug панель' : 'Показать debug панель';
+    debugToggleButton.setAttribute('aria-pressed', isDebugPanelVisible ? 'true' : 'false');
+};
+
+debugToggleButton.addEventListener('click', () => {
+    isDebugPanelVisible = !isDebugPanelVisible;
+    applyDebugPanelVisibility();
+});
+
+applyDebugPanelVisibility();
 
 const victoryGroup = debugPanel.addGroup('Параметры победы');
 const victoryCluesControl = debugPanel.addNumericControl(victoryGroup, 'Собранные улики', {
