@@ -1,3 +1,5 @@
+import type { GameProgressSlice } from "../game-engine/game-engine-store";
+
 export interface GamePhase {
     /** Заголовок фазы */
     title: string;
@@ -9,11 +11,11 @@ export interface GamePhase {
      * Пользовательское условие завершения фазы.
      * Если возвращает true — фаза считается выполненной независимо от таймера.
      */
-    condition?: () => boolean;
+    condition?: (progress: GameProgressSlice) => boolean;
     /** Дополнительное описание требования для отображения в статусе */
     statusLabel?: string;
     /** Текущий прогресс, отображаемый рядом со статусом */
-    statusValue?: () => string;
+    statusValue?: (progress: GameProgressSlice) => string;
 }
 
 interface TimelineState {
@@ -21,6 +23,7 @@ interface TimelineState {
     currentIndex: number;
     isComplete: boolean;
     elements: TimelineElements;
+    kind: "victory" | "defeat";
 }
 
 interface TimelineElements {
@@ -164,17 +167,19 @@ function ensureStylesMounted() {
 }
 
 export class GameLoopPanel {
-    private readonly host: HTMLElement
+    private readonly host: HTMLElement;
     private container: HTMLDivElement;
     private victoryTimeline: TimelineState;
     private defeatTimeline: TimelineState;
+    private victoryProgress: GameProgressSlice = {};
+    private defeatProgress: GameProgressSlice = {};
 
-    constructor(host: HTMLElement | null, private readonly config: GameLoopConfig) {
+    constructor(host: HTMLElement | null, config: GameLoopConfig) {
         if (!host) {
             throw new Error("GameLoopPanel: host element is not available");
         }
 
-        this.host = host
+        this.host = host;
         ensureStylesMounted();
 
         this.container = document.createElement("div");
@@ -192,8 +197,14 @@ export class GameLoopPanel {
         this.renderTimeline(this.defeatTimeline);
     }
 
-    destroy() {
+    destroy(): void {
         this.host.removeChild(this.container);
+    }
+
+    updateProgress(victoryProgress: GameProgressSlice, defeatProgress: GameProgressSlice): void {
+        this.victoryProgress = { ...victoryProgress };
+        this.defeatProgress = { ...defeatProgress };
+        this.evaluate();
     }
 
     private createTimeline(title: string, phases: GamePhase[], kind: "victory" | "defeat"): TimelineState {
@@ -241,6 +252,7 @@ export class GameLoopPanel {
             phases,
             currentIndex: 0,
             isComplete: phases.length === 0,
+            kind,
             elements: {
                 container,
                 accent,
@@ -263,6 +275,7 @@ export class GameLoopPanel {
 
         const phase = timeline.phases[timeline.currentIndex];
         const {phaseTitle, phaseDescription, phaseImage, counter, statusLabel} = timeline.elements;
+        const progress = this.getProgressForTimeline(timeline);
 
         phaseTitle.textContent = phase.title;
         phaseDescription.textContent = phase.description;
@@ -280,7 +293,7 @@ export class GameLoopPanel {
             : `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length}`;
 
         statusLabel.textContent = statusText;
-        counter.textContent = phase.statusValue?.() ?? "В процессе";
+        counter.textContent = phase.statusValue?.(progress) ?? "В процессе";
     }
 
     evaluate() {
@@ -302,7 +315,9 @@ export class GameLoopPanel {
 
         this.refreshStatus(timeline, phase);
 
-        if (phase.condition?.()) {
+        const progress = this.getProgressForTimeline(timeline);
+
+        if (phase.condition?.(progress)) {
             this.advanceTimeline(timeline);
             this.evaluateTimeline(timeline);
         }
@@ -310,9 +325,10 @@ export class GameLoopPanel {
 
     private refreshStatus(timeline: TimelineState, phase: GamePhase) {
         const {statusLabel, counter} = timeline.elements;
+        const progress = this.getProgressForTimeline(timeline);
         const baseText = `Фаза ${timeline.currentIndex + 1} из ${timeline.phases.length}`;
         statusLabel.textContent = phase.statusLabel ? `${baseText} · ${phase.statusLabel}` : baseText;
-        counter.textContent = phase.statusValue?.() ?? "В процессе";
+        counter.textContent = phase.statusValue?.(progress) ?? "В процессе";
     }
 
     private advanceTimeline(timeline: TimelineState) {
@@ -338,5 +354,9 @@ export class GameLoopPanel {
             : "Нет активных фаз";
 
         timeline.elements.statusLabel.textContent = completionText;
+    }
+
+    private getProgressForTimeline(timeline: TimelineState): GameProgressSlice {
+        return timeline.kind === "victory" ? this.victoryProgress : this.defeatProgress;
     }
 }

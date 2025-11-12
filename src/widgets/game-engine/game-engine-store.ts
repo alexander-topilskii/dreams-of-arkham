@@ -29,11 +29,15 @@ export type GameEngineConfig = {
     onActionsChange?: (actions: number) => void;
 };
 
+export type GameProgressSlice = Record<string, number | boolean>;
+
 export type GameEngineState = {
     currentLocationId: string | null;
     actionsRemaining: number;
     userLog: readonly string[];
     systemLog: readonly string[];
+    victoryProgress: GameProgressSlice;
+    defeatProgress: GameProgressSlice;
 };
 
 export type GameViewModel = {
@@ -43,6 +47,8 @@ export type GameViewModel = {
     readonly userLog: readonly string[];
     readonly systemLog: readonly string[];
     readonly hand: readonly HandCardContent[];
+    readonly victoryProgress: Readonly<GameProgressSlice>;
+    readonly defeatProgress: Readonly<GameProgressSlice>;
 };
 
 export type GameEvent =
@@ -57,7 +63,9 @@ export type GameEvent =
     | { type: "turn:ended"; actionsRemaining: number; drawnEvents: number }
     | { type: "card:added"; card: HandCardContent; reason?: "draw" | "debug" | "manual" }
     | { type: "card:consumed"; card: HandCardContent; reason?: "consume" | "discard" | "debug" }
-    | { type: "hand:sync"; hand: readonly HandCardContent[] };
+    | { type: "hand:sync"; hand: readonly HandCardContent[] }
+    | { type: "progress:victoryUpdate"; progress: GameProgressSlice }
+    | { type: "progress:defeatUpdate"; progress: GameProgressSlice };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
@@ -149,6 +157,8 @@ export class GameEngineStore {
             actionsRemaining: this.initialActions,
             userLog: [],
             systemLog: [],
+            victoryProgress: {},
+            defeatProgress: {},
         };
 
         this.viewModel = this.buildViewModel();
@@ -257,6 +267,26 @@ export class GameEngineStore {
                 this.hand = [...event.hand];
                 break;
             }
+            case "progress:victoryUpdate": {
+                this.state = {
+                    ...this.state,
+                    victoryProgress: {
+                        ...this.state.victoryProgress,
+                        ...event.progress,
+                    },
+                };
+                break;
+            }
+            case "progress:defeatUpdate": {
+                this.state = {
+                    ...this.state,
+                    defeatProgress: {
+                        ...this.state.defeatProgress,
+                        ...event.progress,
+                    },
+                };
+                break;
+            }
         }
 
         this.viewModel = this.buildViewModel();
@@ -331,6 +361,8 @@ export class GameEngineStore {
             userLog: this.state.userLog,
             systemLog: this.state.systemLog,
             hand: this.hand,
+            victoryProgress: { ...this.state.victoryProgress },
+            defeatProgress: { ...this.state.defeatProgress },
         };
     }
 
@@ -643,4 +675,47 @@ export class AddDebugCardCommand extends BaseGameEngineStoreCommand {
             { type: "log", channel: "system", message: `hand:debug_card_added:${card.id}` },
         ];
     }
+}
+
+export class UpdateVictoryProgressCommand implements GameCommand {
+    constructor(private readonly updates: Partial<GameProgressSlice>) {}
+
+    public execute(): GameEvent[] {
+        const progress = normalizeProgressSlice(this.updates);
+        if (Object.keys(progress).length === 0) {
+            return [];
+        }
+
+        return [{ type: "progress:victoryUpdate", progress }];
+    }
+}
+
+export class UpdateDefeatProgressCommand implements GameCommand {
+    constructor(private readonly updates: Partial<GameProgressSlice>) {}
+
+    public execute(): GameEvent[] {
+        const progress = normalizeProgressSlice(this.updates);
+        if (Object.keys(progress).length === 0) {
+            return [];
+        }
+
+        return [{ type: "progress:defeatUpdate", progress }];
+    }
+}
+
+function normalizeProgressSlice(updates: Partial<GameProgressSlice>): GameProgressSlice {
+    const normalized: GameProgressSlice = {};
+
+    for (const [key, value] of Object.entries(updates)) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+            normalized[key] = value;
+            continue;
+        }
+
+        if (typeof value === "boolean") {
+            normalized[key] = value;
+        }
+    }
+
+    return normalized;
 }
