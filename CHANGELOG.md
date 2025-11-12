@@ -1,3 +1,4 @@
+[2025-02-14 12:00][CHANGE] Reworked GameEngine to emit events via commands and updated card hand controller integration.<br>
 [2025-11-12 04:05][CHANGE] Перенёс отладочную панель в плавающий контейнер с перетаскиванием на базе draggabilly.<br>
 [2025-11-11 20:05][ADD FEATURE] Добавлена кнопка «Закончить ход» в руке карт с обработкой через GameEngine: разыгрываются события по числу игроков, после чего очки действий восстанавливаются.<br>
 [2025-11-11 19:40][FIX] Восстановлено отображение карт руки после очистки и повторного заполнения колоды.<br>
@@ -35,3 +36,4 @@
 [2025-11-09 17:20][ADD FEATURE] Added interactive expedition map widget with draggable territories and debug tools.<br>
 [2025-11-09 15:42][ADD FEATURE] Rebuilt SimpleCardHand into draggable bottom panel with paginated cards, images and responsive styling.<br>
 [2025-11-09 14:09][CHANGE] Reorganized widgets into dedicated folders with documentation per component.<br>
+[2025-02-14 12:00][CHANGE] Reworked GameEngine to emit events via commands and updated card hand controller integration.

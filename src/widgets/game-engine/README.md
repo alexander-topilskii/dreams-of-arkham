@@ -25,15 +25,18 @@ GameEngine
 
 ## Behavior
 - On `initialize()` the widget computes the first territory from `mapConfig`, updates the state badge, and dispatches an `EnterLocationCommand`.
-- `dispatch(command)` executes the command in FIFO order, appending it to history and re-rendering logs and the state badge.
-- `EnterLocationCommand` reveals the specified territory on the Expedition Map, places the player token, updates engine state, and appends both narrative and system log entries.
-- `attemptMoveWithCard(card, territoryId)` validates adjacency and remaining actions, spends the cost, moves the character, and logs success or a localized failure message.
-- `endTurn()` завершает ход игрока, разыгрывает события через `EventDeck` по количеству игроков и восстанавливает очки действий.
-- The state badge displays both the current location title and the remaining action points; `onActionsChange` notifies external UI (e.g., CharacterCard) about updates.
-- `logUserMessage` and `logSystemMessage` append entries for later rendering; logs display from oldest to newest. When no entries exist a dashed placeholder appears instead of empty list items.
-- `refresh()` forces a re-render without executing a command—useful after manual `logUserMessage` calls.
-- When no entries exist a dashed placeholder appears instead of empty list items.
+- `dispatch(command)` executes the command, applies every returned `GameEvent`, re-renders the widget, and forwards the event alongside the latest `GameViewModel` to subscribers.
+- `subscribe(listener)` registers UI observers; listeners receive both discrete events (e.g. `move:success`, `move:failure`, `turn:ended`) and derived view model snapshots for rendering.
+- Commands such as `EnterLocationCommand`, `MoveWithCardCommand`, `EndTurnCommand`, and `PostLogCommand` encapsulate gameplay mutations; they return `GameEvent[]` instead of mutating DOM directly.
+- The engine keeps localized user/system logs inside `GameEngineState`; derived state exposes titles and counts for UI badges. `onActionsChange` still notifies external widgets about `actions:update` events.
 - Widget keeps a `var(--pad)` (12px fallback) top offset to mirror CardHand spacing and clamps its height to the host panel, enabling vertical scrolling whenever logs overflow.
+
+### Emitted events
+- `log` — user or system log entry added to history.
+- `actions:update` — remaining actions changed and `onActionsChange` fired.
+- `location:*` / `player:place` — Expedition Map should reveal/place the investigator token.
+- `move:success` / `move:failure` — result of `MoveWithCardCommand` including error messaging.
+- `turn:ended` — end-of-turn summary with restored actions and event count.
 
 
 ## API (Props / Inputs / Outputs)
@@ -47,15 +50,10 @@ GameEngine
 | `eventDeck` | `EventDeck` | — | Колода событий, которую движок использует при завершении хода. |
 | `onActionsChange` | `(actions: number) => void` | — | Notifies external UI when remaining actions change. |
 | `initialize()` | `() => void` | — | Bootstraps the engine; safe to call once. |
-| `dispatch(command)` | `(GameCommand) => void` | — | Executes a command and records it in the history. |
-| `logUserMessage(message)` | `(string) => void` | — | Adds a narrative log entry; typically called by commands. |
-| `logSystemMessage(message)` | `(string) => void` | — | Adds an internal/system log entry. |
-| `setCurrentLocation(id)` | `(string) => void` | — | Stores identifier of the current territory. |
-| `revealLocation(id)` | `(string) => void` | — | Reveals (flips) the territory on the Expedition Map. |
-| `placePlayer(id)` | `(string) => void` | — | Places the player token on the map territory. |
-| `attemptMoveWithCard(card, territoryId)` | `(MoveCardDescriptor, string) => MoveAttemptResult` | — | Validates and resolves a move card play, logging success or failure. |
-| `refresh()` | `() => void` | — | Forces immediate re-render of logs and badge without executing a command. |
-| `endTurn()` | `() => void` | — | Triggers end-of-turn flow: логирует завершение, открывает события и восстанавливает действия. |
+| `dispatch(command)` | `(GameCommand) => GameEvent[]` | — | Executes a command, applies emitted events, and returns them for synchronous consumers. |
+| `subscribe(listener)` | `(GameEventSubscriber) => () => void` | — | Registers an event/view-model listener and returns an unsubscribe handle. |
+| `unsubscribe(listener)` | `(GameEventSubscriber) => void` | — | Removes a previously registered listener when the disposer is not stored. |
+| `getViewModel()` | `() => GameViewModel` | — | Returns the latest derived snapshot (current location title, logs, remaining actions). |
 
 ## States and Examples
 - **Initial (before initialize)**: Logs show placeholders, state badge displays `Текущая локация: неизвестно`.
@@ -70,7 +68,13 @@ GameEngine
 
 ## Integration Example
 ```ts
-import { GameEngine, EnterLocationCommand } from "./widgets/game-engine/game-engine";
+import {
+    GameEngine,
+    EnterLocationCommand,
+    MoveWithCardCommand,
+    PostLogCommand,
+    EndTurnCommand,
+} from "./widgets/game-engine/game-engine";
 import { ExpeditionMap } from "./widgets/expedition-map/expedition-map";
 
 const map = new ExpeditionMap(mapContainer, mapConfig);
@@ -83,13 +87,26 @@ const engine = new GameEngine(engineRoot, {
 });
 engine.initialize();
 
-// Commands still work as before
+const unsubscribe = engine.subscribe((event, viewModel) => {
+    renderEnginePanel(viewModel);
+    if (event.type === 'move:failure') {
+        toast(event.message);
+    }
+});
+
 engine.dispatch(new EnterLocationCommand("street-2"));
 
-// Move cards can call the helper directly
-const result = engine.attemptMoveWithCard({ id: card.id, title: card.title, cost: card.cost }, "street-3");
-if (!result.success) {
-    engine.logUserMessage(result.message);
-    engine.refresh();
+const events = engine.dispatch(
+    new MoveWithCardCommand({ id: card.id, title: card.title, cost: card.cost }, "street-3")
+);
+const failedMove = events.find((evt) => evt.type === 'move:failure');
+if (failedMove) {
+    notifyPlayer(failedMove.message);
 }
+
+engine.dispatch(new PostLogCommand('system', 'manual-note:expedition')); // manual log entry
+engine.dispatch(new EndTurnCommand());
+
+// Later, when tearing down the widget
+unsubscribe();
 ```

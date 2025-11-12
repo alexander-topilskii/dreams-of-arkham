@@ -133,16 +133,41 @@ export type GameEngineConfig = {
 export type GameEngineState = {
     currentLocationId: string | null;
     actionsRemaining: number;
+    userLog: readonly string[];
+    systemLog: readonly string[];
 };
 
+export type GameViewModel = {
+    readonly currentLocationId: string | null;
+    readonly currentLocationTitle: string | null;
+    readonly actionsRemaining: number;
+    readonly userLog: readonly string[];
+    readonly systemLog: readonly string[];
+};
+
+export type GameEvent =
+    | { type: 'state:sync' }
+    | { type: 'log'; channel: 'user' | 'system'; message: string }
+    | { type: 'actions:update'; actionsRemaining: number }
+    | { type: 'location:reveal'; locationId: string }
+    | { type: 'player:place'; locationId: string }
+    | { type: 'location:set'; locationId: string }
+    | { type: 'move:success'; card: MoveCardDescriptor; from: string; to: string }
+    | { type: 'move:failure'; card: MoveCardDescriptor; reason: MoveFailureReason; message: string }
+    | { type: 'turn:ended'; actionsRemaining: number; drawnEvents: number };
+
+export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
+
 export interface GameEngineContext {
-    readonly engine: GameEngine;
     readonly state: Readonly<GameEngineState>;
     readonly config: GameEngineConfig;
+    readonly eventDeck?: EventDeck;
+    readonly playerCount: number;
+    readonly initialActions: number;
 }
 
 export interface GameCommand {
-    execute(context: GameEngineContext): void;
+    execute(context: GameEngineContext): GameEvent[];
 }
 
 export type MoveCardDescriptor = {
@@ -152,10 +177,6 @@ export type MoveCardDescriptor = {
 };
 
 export type MoveFailureReason = 'no-current-location' | 'unknown-location' | 'not-adjacent' | 'not-enough-actions';
-
-export type MoveAttemptResult =
-    | { success: true; locationId: string }
-    | { success: false; reason: MoveFailureReason; message: string };
 
 export class GameEngine {
     private readonly root: HTMLElement;
@@ -170,8 +191,7 @@ export class GameEngine {
     private readonly stateElement: HTMLDivElement;
 
     private state: GameEngineState;
-    private readonly userHistory: string[] = [];
-    private readonly systemHistory: string[] = [];
+    private readonly subscribers = new Set<GameEventSubscriber>();
     private readonly executedCommands: GameCommand[] = [];
     private initialized = false;
 
@@ -195,7 +215,12 @@ export class GameEngine {
             ? Math.max(0, Math.floor(config.initialActions))
             : 0;
         this.initialActions = initialActions;
-        this.state = { currentLocationId: null, actionsRemaining: this.initialActions };
+        this.state = {
+            currentLocationId: null,
+            actionsRemaining: this.initialActions,
+            userLog: [],
+            systemLog: [],
+        };
 
         this.config.onActionsChange?.(this.state.actionsRemaining);
 
@@ -258,155 +283,116 @@ export class GameEngine {
         this.bootstrapInitialLocation();
     }
 
-    public dispatch(command: GameCommand): void {
-        this.executedCommands.push(command);
-        command.execute({ engine: this, state: this.state, config: this.config });
-        this.render();
-    }
 
-    public refresh(): void {
-        this.render();
-    }
+    public dispatch(command: GameCommand): GameEvent[] {
+        const context: GameEngineContext = {
+            state: this.state,
+            config: this.config,
+            eventDeck: this.eventDeck,
+            playerCount: this.playerCount,
+            initialActions: this.initialActions,
+        };
 
-    public endTurn(): void {
-        const playerName = this.config.player.name;
-        this.logUserMessage(`${playerName} завершает ход.`);
-        this.logSystemMessage(`turn:end:start:${playerName}`);
+        const events = command.execute(context) ?? [];
 
-        const { drawn, userMessageHandled } = this.resolveEndTurnEvents();
-
-        if (drawn > 0) {
-            const noun = this.resolveEventNoun(drawn);
-            this.logUserMessage(`Судьба раскрывает ${drawn} ${noun}.`);
-            this.logSystemMessage(`turn:end:events:${drawn}`);
-        } else {
-            this.logSystemMessage("turn:end:events:0");
-            if (!userMessageHandled) {
-                this.logUserMessage("Новых событий не произошло.");
-            }
+        for (const event of events) {
+            this.applyEvent(event);
+            this.notifySubscribers(event);
         }
 
-        this.updateActions(this.initialActions);
-        this.logUserMessage(`Очки действий восстановлены до ${this.initialActions}.`);
-        this.logSystemMessage(`turn:end:actions_reset:${this.initialActions}`);
-
+        this.executedCommands.push(command);
         this.render();
+
+        return events;
     }
 
-    public logUserMessage(message: string): void {
-        this.userHistory.push(message);
+    public subscribe(subscriber: GameEventSubscriber): () => void {
+        this.subscribers.add(subscriber);
+        subscriber({ type: 'state:sync' }, this.getViewModel());
+        return () => this.unsubscribe(subscriber);
     }
 
-    public logSystemMessage(message: string): void {
-        this.systemHistory.push(message);
+    public unsubscribe(subscriber: GameEventSubscriber): void {
+        this.subscribers.delete(subscriber);
     }
 
-    public setCurrentLocation(locationId: string): void {
-        this.state = { ...this.state, currentLocationId: locationId };
+    public getViewModel(): GameViewModel {
+        return this.buildViewModel();
+    }
+
+    private notifySubscribers(event: GameEvent): void {
+        if (this.subscribers.size === 0) {
+            return;
+        }
+
+        const viewModel = this.getViewModel();
+        for (const subscriber of this.subscribers) {
+            subscriber(event, viewModel);
+        }
+    }
+
+    private applyEvent(event: GameEvent): void {
+        switch (event.type) {
+            case 'state:sync': {
+                return;
+            }
+            case 'log': {
+                this.appendLog(event.channel, event.message);
+                return;
+            }
+            case 'actions:update': {
+                this.updateActions(event.actionsRemaining);
+                return;
+            }
+            case 'location:reveal': {
+                this.revealLocation(event.locationId);
+                return;
+            }
+            case 'player:place': {
+                this.placePlayer(event.locationId);
+                return;
+            }
+            case 'location:set': {
+                this.setCurrentLocation(event.locationId);
+                return;
+            }
+            case 'move:success':
+            case 'move:failure':
+            case 'turn:ended': {
+                return;
+            }
+        }
+    }
+
+    private appendLog(channel: 'user' | 'system', message: string): void {
+        if (channel === 'user') {
+            this.state = {
+                ...this.state,
+                userLog: [...this.state.userLog, message],
+            };
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            systemLog: [...this.state.systemLog, message],
+        };
     }
 
     private updateActions(actions: number): void {
         const normalized = Math.max(0, actions);
-        this.state = { ...this.state, actionsRemaining: normalized };
+        this.state = {
+            ...this.state,
+            actionsRemaining: normalized,
+        };
         this.config.onActionsChange?.(this.state.actionsRemaining);
     }
 
-    private resolveEndTurnEvents(): { drawn: number; userMessageHandled: boolean } {
-        const deck = this.eventDeck;
-
-        if (!deck) {
-            this.logSystemMessage("turn:end:event_deck:missing");
-            this.logUserMessage("Колода событий недоступна — этап событий пропущен.");
-            return { drawn: 0, userMessageHandled: true };
-        }
-
-        if (this.playerCount <= 0) {
-            this.logSystemMessage("turn:end:event_deck:skipped:no_players");
-            return { drawn: 0, userMessageHandled: true };
-        }
-
-        const cards = deck.revealEvents(this.playerCount);
-
-        if (cards.length === 0) {
-            this.logSystemMessage("turn:end:event_deck:empty");
-            this.logUserMessage("Новых событий не произошло.");
-            return { drawn: 0, userMessageHandled: true };
-        }
-
-        return { drawn: cards.length, userMessageHandled: false };
-    }
-
-    private resolveEventNoun(amount: number): string {
-        const mod10 = amount % 10;
-        const mod100 = amount % 100;
-
-        if (mod10 === 1 && mod100 !== 11) {
-            return "событие";
-        }
-
-        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
-            return "события";
-        }
-
-        return "событий";
-    }
-
-    public attemptMoveWithCard(card: MoveCardDescriptor, targetLocationId: string): MoveAttemptResult {
-        const targetTerritory = this.getTerritory(targetLocationId);
-        if (!targetTerritory) {
-            const message = `Локация ${targetLocationId} не найдена на карте.`;
-            this.logSystemMessage(`move_denied:unknown_location:${targetLocationId}`);
-            this.logUserMessage(message);
-            this.render();
-            return { success: false, reason: 'unknown-location', message };
-        }
-
-        const currentLocationId = this.state.currentLocationId;
-        if (!currentLocationId) {
-            const message = `Персонаж ещё не размещён на карте. Использование «${card.title}» невозможно.`;
-            this.logUserMessage(message);
-            this.logSystemMessage(`move_denied:no_current_location:${card.id}`);
-            this.render();
-            return { success: false, reason: 'no-current-location', message };
-        }
-
-        if (!this.isAdjacent(currentLocationId, targetLocationId)) {
-            const currentTitle = this.resolveLocationTitle(currentLocationId) ?? currentLocationId;
-            const message = `${targetTerritory.front.title} слишком далеко от ${currentTitle}.`;
-            this.logUserMessage(message);
-            this.logSystemMessage(`move_denied:not_adjacent:${currentLocationId}->${targetLocationId}`);
-            this.render();
-            return { success: false, reason: 'not-adjacent', message };
-        }
-
-        if (this.state.actionsRemaining < card.cost) {
-            const message = `Недостаточно действий для «${card.title}»: требуется ${card.cost}, доступно ${this.state.actionsRemaining}.`;
-            this.logUserMessage(message);
-            this.logSystemMessage(
-                `move_denied:not_enough_actions:${card.id}:${card.cost}>${this.state.actionsRemaining}`
-            );
-            this.render();
-            return { success: false, reason: 'not-enough-actions', message };
-        }
-
-        this.updateActions(this.state.actionsRemaining - card.cost);
-        this.revealLocation(targetLocationId);
-        this.placePlayer(targetLocationId);
-        this.setCurrentLocation(targetLocationId);
-
-        const playerName = this.config.player.name;
-        this.logUserMessage(`${playerName} использует «${card.title}» и перемещается в ${targetTerritory.front.title}.`);
-        this.logSystemMessage(`move:${card.id}:${currentLocationId}->${targetLocationId}`);
-        this.render();
-
-        return { success: true, locationId: targetLocationId };
-    }
-
-    public revealLocation(locationId: string): void {
+    private revealLocation(locationId: string): void {
         this.config.map.revealTerritory(locationId);
     }
 
-    public placePlayer(locationId: string): void {
+    private placePlayer(locationId: string): void {
         const { player } = this.config;
         this.config.map.placeCharacter(
             {
@@ -421,10 +407,34 @@ export class GameEngine {
         );
     }
 
+    private setCurrentLocation(locationId: string | null): void {
+        this.state = { ...this.state, currentLocationId: locationId };
+    }
+
+    private buildViewModel(): GameViewModel {
+        const locationTitle = this.state.currentLocationId
+            ? this.resolveLocationTitle(this.state.currentLocationId)
+            : null;
+
+        return {
+            currentLocationId: this.state.currentLocationId,
+            currentLocationTitle: locationTitle,
+            actionsRemaining: this.state.actionsRemaining,
+            userLog: this.state.userLog,
+            systemLog: this.state.systemLog,
+        };
+    }
+
     private bootstrapInitialLocation(): void {
         const territory = this.config.mapConfig.territories[0];
         if (!territory) {
-            this.logSystemMessage("bootstrap: нет доступных территорий для размещения персонажа");
+            const event: GameEvent = {
+                type: 'log',
+                channel: 'system',
+                message: 'bootstrap: нет доступных территорий для размещения персонажа',
+            };
+            this.applyEvent(event);
+            this.notifySubscribers(event);
             this.render();
             return;
         }
@@ -433,22 +443,30 @@ export class GameEngine {
     }
 
     private render(): void {
-        const locationTitle = this.state.currentLocationId
-            ? this.resolveLocationTitle(this.state.currentLocationId)
-            : null;
+        const viewModel = this.getViewModel();
+        const actionsText = `Действия: ${viewModel.actionsRemaining}`;
 
-        const actionsText = `Действия: ${this.state.actionsRemaining}`;
-        if (locationTitle) {
-            this.stateElement.textContent = `Текущая локация: ${locationTitle} · ${actionsText}`;
+        if (viewModel.currentLocationTitle) {
+            this.stateElement.textContent = `Текущая локация: ${viewModel.currentLocationTitle} · ${actionsText}`;
         } else {
             this.stateElement.textContent = `Текущая локация: неизвестно · ${actionsText}`;
         }
 
-        this.renderLog(this.userLogList, this.userHistory, "Пока ничего не произошло.");
-        this.renderLog(this.systemLogList, this.systemHistory, "Системных действий не зарегистрировано.", true);
+        this.renderLog(this.userLogList, viewModel.userLog, "Пока ничего не произошло.");
+        this.renderLog(
+            this.systemLogList,
+            viewModel.systemLog,
+            "Системных действий не зарегистрировано.",
+            true
+        );
     }
 
-    private renderLog(list: HTMLUListElement, items: string[], emptyLabel: string, isSystem = false): void {
+    private renderLog(
+        list: HTMLUListElement,
+        items: readonly string[],
+        emptyLabel: string,
+        isSystem = false
+    ): void {
         list.innerHTML = "";
 
         if (!items.length) {
@@ -461,7 +479,8 @@ export class GameEngine {
 
         for (const item of items) {
             const li = document.createElement("li");
-            li.className = "game-engine-widget__log-item" + (isSystem ? " game-engine-widget__log-item--system" : "");
+            li.className =
+                "game-engine-widget__log-item" + (isSystem ? " game-engine-widget__log-item--system" : "");
             li.textContent = item;
             list.appendChild(li);
         }
@@ -475,36 +494,206 @@ export class GameEngine {
     private getTerritory(id: string): TerritoryConfig | undefined {
         return this.territoryLookup.get(id);
     }
+}
 
-    private isAdjacent(fromId: string, toId: string): boolean {
-        if (fromId === toId) {
-            return false;
+function findTerritory(mapConfig: ExpeditionMapConfig, id: string): TerritoryConfig | undefined {
+    return mapConfig.territories.find((entry) => entry.id === id);
+}
+
+function isAdjacent(mapConfig: ExpeditionMapConfig, fromId: string, toId: string): boolean {
+    if (fromId === toId) {
+        return false;
+    }
+
+    const fromTerritory = findTerritory(mapConfig, fromId);
+    if (!fromTerritory) {
+        return false;
+    }
+
+    return fromTerritory.connections.some((connection) => connection.targetId === toId);
+}
+
+function resolveEventNoun(amount: number): string {
+    const mod10 = amount % 10;
+    const mod100 = amount % 100;
+
+    if (mod10 === 1 && mod100 !== 11) {
+        return "событие";
+    }
+
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+        return "события";
+    }
+
+    return "событий";
+}
+
+export class MoveWithCardCommand implements GameCommand {
+    constructor(private readonly card: MoveCardDescriptor, private readonly targetLocationId: string) {}
+
+    public execute(context: GameEngineContext): GameEvent[] {
+        const { card, targetLocationId } = this;
+        const events: GameEvent[] = [];
+        const targetTerritory = findTerritory(context.config.mapConfig, targetLocationId);
+
+        if (!targetTerritory) {
+            const message = `Локация ${targetLocationId} не найдена на карте.`;
+            events.push({ type: 'log', channel: 'system', message: `move_denied:unknown_location:${targetLocationId}` });
+            events.push({ type: 'log', channel: 'user', message });
+            events.push({ type: 'move:failure', card, reason: 'unknown-location', message });
+            return events;
         }
-        const territory = this.getTerritory(fromId);
-        if (!territory) {
-            return false;
+
+        const currentLocationId = context.state.currentLocationId;
+        if (!currentLocationId) {
+            const message = `Персонаж ещё не размещён на карте. Использование «${card.title}» невозможно.`;
+            events.push({ type: 'log', channel: 'user', message });
+            events.push({ type: 'log', channel: 'system', message: `move_denied:no_current_location:${card.id}` });
+            events.push({ type: 'move:failure', card, reason: 'no-current-location', message });
+            return events;
         }
-        return territory.connections.some((connection) => connection.targetId === toId);
+
+        if (!isAdjacent(context.config.mapConfig, currentLocationId, targetLocationId)) {
+            const currentTitle = findTerritory(context.config.mapConfig, currentLocationId)?.front.title ?? currentLocationId;
+            const message = `${targetTerritory.front.title} слишком далеко от ${currentTitle}.`;
+            events.push({ type: 'log', channel: 'user', message });
+            events.push({
+                type: 'log',
+                channel: 'system',
+                message: `move_denied:not_adjacent:${currentLocationId}->${targetLocationId}`,
+            });
+            events.push({ type: 'move:failure', card, reason: 'not-adjacent', message });
+            return events;
+        }
+
+        if (context.state.actionsRemaining < card.cost) {
+            const message = `Недостаточно действий для «${card.title}»: требуется ${card.cost}, доступно ${context.state.actionsRemaining}.`;
+            events.push({ type: 'log', channel: 'user', message });
+            events.push({
+                type: 'log',
+                channel: 'system',
+                message: `move_denied:not_enough_actions:${card.id}:${card.cost}>${context.state.actionsRemaining}`,
+            });
+            events.push({ type: 'move:failure', card, reason: 'not-enough-actions', message });
+            return events;
+        }
+
+        const nextActions = context.state.actionsRemaining - card.cost;
+        const playerName = context.config.player.name;
+        const userMessage = `${playerName} использует «${card.title}» и перемещается в ${targetTerritory.front.title}.`;
+
+        events.push({ type: 'actions:update', actionsRemaining: nextActions });
+        events.push({ type: 'location:reveal', locationId: targetLocationId });
+        events.push({ type: 'player:place', locationId: targetLocationId });
+        events.push({ type: 'location:set', locationId: targetLocationId });
+        events.push({ type: 'log', channel: 'user', message: userMessage });
+        events.push({
+            type: 'log',
+            channel: 'system',
+            message: `move:${card.id}:${currentLocationId}->${targetLocationId}`,
+        });
+        events.push({ type: 'move:success', card, from: currentLocationId, to: targetLocationId });
+
+        return events;
+    }
+}
+
+export class EndTurnCommand implements GameCommand {
+    public execute(context: GameEngineContext): GameEvent[] {
+        const events: GameEvent[] = [];
+        const playerName = context.config.player.name;
+
+        events.push({ type: 'log', channel: 'user', message: `${playerName} завершает ход.` });
+        events.push({ type: 'log', channel: 'system', message: `turn:end:start:${playerName}` });
+
+        let drawn = 0;
+        let userMessageHandled = false;
+
+        const deck = context.eventDeck;
+        if (!deck) {
+            events.push({ type: 'log', channel: 'system', message: 'turn:end:event_deck:missing' });
+            events.push({
+                type: 'log',
+                channel: 'user',
+                message: 'Колода событий недоступна — этап событий пропущен.',
+            });
+            userMessageHandled = true;
+        } else if (context.playerCount <= 0) {
+            events.push({ type: 'log', channel: 'system', message: 'turn:end:event_deck:skipped:no_players' });
+            userMessageHandled = true;
+        } else {
+            const cards = deck.revealEvents(context.playerCount);
+            drawn = cards.length;
+
+            if (drawn === 0) {
+                events.push({ type: 'log', channel: 'system', message: 'turn:end:event_deck:empty' });
+                events.push({ type: 'log', channel: 'user', message: 'Новых событий не произошло.' });
+                userMessageHandled = true;
+            }
+        }
+
+        if (drawn > 0) {
+            const noun = resolveEventNoun(drawn);
+            events.push({ type: 'log', channel: 'user', message: `Судьба раскрывает ${drawn} ${noun}.` });
+            events.push({ type: 'log', channel: 'system', message: `turn:end:events:${drawn}` });
+        } else {
+            events.push({ type: 'log', channel: 'system', message: 'turn:end:events:0' });
+            if (!userMessageHandled) {
+                events.push({ type: 'log', channel: 'user', message: 'Новых событий не произошло.' });
+            }
+        }
+
+        events.push({ type: 'actions:update', actionsRemaining: context.initialActions });
+        events.push({
+            type: 'log',
+            channel: 'user',
+            message: `Очки действий восстановлены до ${context.initialActions}.`,
+        });
+        events.push({
+            type: 'log',
+            channel: 'system',
+            message: `turn:end:actions_reset:${context.initialActions}`,
+        });
+
+        events.push({ type: 'turn:ended', actionsRemaining: context.initialActions, drawnEvents: drawn });
+
+        return events;
+    }
+}
+
+export class PostLogCommand implements GameCommand {
+    constructor(private readonly channel: 'user' | 'system', private readonly message: string) {}
+
+    public execute(): GameEvent[] {
+        return [{ type: 'log', channel: this.channel, message: this.message }];
     }
 }
 
 export class EnterLocationCommand implements GameCommand {
     constructor(private readonly locationId: string) {}
 
-    public execute(context: GameEngineContext): void {
-        const { engine, config } = context;
-        const territory = config.mapConfig.territories.find((entry) => entry.id === this.locationId);
+    public execute(context: GameEngineContext): GameEvent[] {
+        const territory = findTerritory(context.config.mapConfig, this.locationId);
         if (!territory) {
-            engine.logSystemMessage(`enter_location: территория ${this.locationId} не найдена`);
-            return;
+            return [
+                {
+                    type: 'log',
+                    channel: 'system',
+                    message: `enter_location: территория ${this.locationId} не найдена`,
+                },
+            ];
         }
 
-        engine.revealLocation(this.locationId);
-        engine.placePlayer(this.locationId);
-        engine.setCurrentLocation(this.locationId);
+        const events: GameEvent[] = [
+            { type: 'location:reveal', locationId: this.locationId },
+            { type: 'player:place', locationId: this.locationId },
+            { type: 'location:set', locationId: this.locationId },
+        ];
 
-        const playerName = config.player.name;
-        engine.logUserMessage(`${playerName} заходит на ${territory.front.title}`);
-        engine.logSystemMessage(`enter_location:${this.locationId}`);
+        const playerName = context.config.player.name;
+        events.push({ type: 'log', channel: 'user', message: `${playerName} заходит на ${territory.front.title}` });
+        events.push({ type: 'log', channel: 'system', message: `enter_location:${this.locationId}` });
+
+        return events;
     }
 }
