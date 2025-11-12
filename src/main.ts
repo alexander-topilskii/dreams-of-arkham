@@ -24,6 +24,7 @@ import {
 import { GameEngineWidget } from "./widgets/game-engine/game-engine";
 import {
     GameEngineStore,
+    GameEngineDebugFacade,
     UpdateDefeatProgressCommand,
     UpdateVictoryProgressCommand,
     type GameProgressSlice,
@@ -172,6 +173,8 @@ const gameEngineStore = new GameEngineStore(
     },
 );
 
+const gameEngineDebug = new GameEngineDebugFacade(gameEngineStore);
+
 const gameEngineWidget = new GameEngineWidget(engineRoot, gameEngineStore);
 
 gameEngineStore.initialize();
@@ -316,12 +319,13 @@ cardsGroup.appendChild(openCardHandButton)
 
 const mapGroup = debugPanel.addGroup('Карта');
 const addTerritoryButton = createDebugButton('Добавить территорию', () => {
-    expeditionMap.addTerritory(createRandomTerritory(expeditionMap));
+    const territory = createRandomTerritory(gameEngineDebug.getTerritoryIds());
+    gameEngineDebug.addTerritory(territory);
 });
 mapGroup.appendChild(addTerritoryButton);
 
 const addCharacterButton = createDebugButton('Добавить персонажа', () => {
-    const territoryIds = expeditionMap.getTerritoryIds();
+    const territoryIds = gameEngineDebug.getTerritoryIds();
     if (territoryIds.length === 0) {
         console.warn('Нет доступных территорий для размещения персонажа.');
         return;
@@ -329,16 +333,16 @@ const addCharacterButton = createDebugButton('Добавить персонаж�
 
     const territoryId = territoryIds[Math.floor(Math.random() * territoryIds.length)];
     const characterToken = createRandomMapCharacterToken();
-    expeditionMap.placeCharacter(characterToken, territoryId);
+    gameEngineDebug.placeCharacter(territoryId, characterToken);
 });
 mapGroup.appendChild(addCharacterButton);
 
 const eventsGroup = debugPanel.addGroup('События');
 const triggerEventButton = createDebugButton('Вызвать событие', () => {
-    eventDeck.triggerEvent();
+    gameEngineDebug.triggerEventDeck();
 });
 const reshuffleEventsButton = createDebugButton('Перемешать сброс событий', () => {
-    eventDeck.reshuffleDiscard();
+    gameEngineDebug.reshuffleEventDeck();
 });
 eventsGroup.append(triggerEventButton, reshuffleEventsButton);
 
@@ -373,7 +377,7 @@ function createRandomCard(): HandCardDefinition {
     }
 }
 
-function createRandomTerritory(map: ExpeditionMap): TerritoryConfig {
+function createRandomTerritory(existingTerritoryIds: readonly string[]): TerritoryConfig {
     const seed = Math.floor(Math.random() * 1000)
     const id = `debug-territory-${Date.now()}-${seed}`
     const palette = ['#0ea5e9', '#22d3ee', '#a855f7', '#f97316', '#f43f5e', '#22c55e']
@@ -395,10 +399,9 @@ function createRandomTerritory(map: ExpeditionMap): TerritoryConfig {
     `
     const image = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`
 
-    const existing = map.getTerritoryIds()
     const connections: { targetId: string; type: TerritoryConnectionType }[] = []
-    if (existing.length > 0) {
-        const targetId = existing[Math.floor(Math.random() * existing.length)]
+    if (existingTerritoryIds.length > 0) {
+        const targetId = existingTerritoryIds[Math.floor(Math.random() * existingTerritoryIds.length)]
         const type: TerritoryConnectionType = Math.random() > 0.5 ? 'two-way' : 'one-way'
         connections.push({ targetId, type })
     }

@@ -1,3 +1,4 @@
+[2025-11-12 07:30][ADD FEATURE] Routed debug map/event actions through GameEngine commands and facade to keep UI decoupled.<br>
 [2025-11-12 06:45][ADD FEATURE] Routed victory/defeat progress through the engine with new commands and reactive game loop panel.<br>
 [2025-11-12 05:15][CHANGE] Split GameEngine into headless GameEngineStore and pure GameEngineWidget, updated main wiring and documentation.<br>
 [2025-11-12 04:37][ADD FEATURE] Added headless GameEngineStore with card events and rewired CardHand to sync via store hand state.<br>
