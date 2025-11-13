@@ -5,39 +5,23 @@
       "title": "Прогуляться",
       "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
       "image": "/images/cards/enigmatic-vision.svg",
-      "cost": 2,
+      "cost": 1,
       "effect": "move"
     },
     {
       "id": "walk",
       "title": "Прогуляться",
-      "description": "Та же дорожка, но теперь вы примечаете новые ориентиры.",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
       "image": "/images/cards/enigmatic-vision.svg",
-      "cost": 2,
+      "cost": 1,
       "effect": "move"
     },
     {
-      "id": "scout-path",
-      "title": "Разведать путь",
-      "description": "Аккуратно продвигаетесь вперёд, выбирая более безопасную траекторию.",
-      "image": "/images/cards/mystic-vision.svg",
-      "cost": 2,
-      "effect": "move"
-    },
-    {
-      "id": "swift-step",
-      "title": "Быстрый шаг",
-      "description": "Собираетесь с духом и ускоряете продвижение, пока враги не видят.",
-      "image": "/images/cards/innsmouth-clues.svg",
-      "cost": 2,
-      "effect": "move"
-    },
-    {
-      "id": "cautious-advance",
-      "title": "Осторожное продвижение",
-      "description": "Делаете маленькие шаги, чтобы не привлечь внимание глубинных тварей.",
-      "image": "/images/cards/guardian-talisman.svg",
-      "cost": 2,
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
       "effect": "move"
     }
   ]
