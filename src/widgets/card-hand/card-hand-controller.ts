@@ -3,12 +3,15 @@ import {
     AddDebugCardCommand,
     ConsumeCardCommand,
     EndTurnCommand,
+    EvadeAllEnemiesWithCardCommand,
+    EvadeEnemyWithCardCommand,
     GameEngineStore,
     type GameEvent,
     type GameViewModel,
+    HealWithCardCommand,
     MoveWithCardCommand,
     PostLogCommand,
-    type MoveCardDescriptor,
+    type HandCardDescriptor,
 } from "../game-engine/game-engine-store";
 import type { HandCardContent } from "../game-engine/game-engine-cards";
 
@@ -38,15 +41,35 @@ export class CardHandController {
     }
 
     onDrop(card: CardHandCard, territoryId: string): CardHandDropResult {
-        const descriptor: MoveCardDescriptor = {
+        const descriptor: HandCardDescriptor = {
             id: card.id,
             title: card.title,
             cost: card.cost,
         };
         this.lastDropResult = undefined;
-        this.store.dispatch(new MoveWithCardCommand(descriptor, territoryId));
+
+        switch (card.effect) {
+            case "move":
+                this.store.dispatch(new MoveWithCardCommand(descriptor, territoryId));
+                break;
+            case "evade":
+                this.store.dispatch(new EvadeEnemyWithCardCommand(descriptor, territoryId));
+                break;
+            case "smoke":
+                this.store.dispatch(new EvadeAllEnemiesWithCardCommand(descriptor, territoryId));
+                break;
+            case "heal":
+                this.store.dispatch(new HealWithCardCommand(descriptor, territoryId));
+                break;
+            default:
+                this.lastDropResult = {
+                    status: "error",
+                    message: "Эффект этой карты пока не поддерживается.",
+                };
+                return this.lastDropResult;
+        }
         const result: CardHandDropResult =
-            this.lastDropResult ?? { status: "error", message: "Не удалось выполнить перемещение." };
+            this.lastDropResult ?? { status: "error", message: "Не удалось применить эффект карты." };
         this.lastDropResult = undefined;
         return result;
     }
@@ -94,6 +117,12 @@ export class CardHandController {
                 this.lastDropResult = { status: "success" };
                 break;
             case "move:failure":
+                this.lastDropResult = { status: "error", message: event.message };
+                break;
+            case "card:play:success":
+                this.lastDropResult = { status: "success" };
+                break;
+            case "card:play:failure":
                 this.lastDropResult = { status: "error", message: event.message };
                 break;
         }
