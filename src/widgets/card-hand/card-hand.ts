@@ -30,6 +30,7 @@ export type CardHandOptions = {
     cards?: CardHandCard[]
     height?: number
     cardWidth?: number
+    cardHeight?: number
     gap?: number
     translucent?: boolean
     enableTouchInertia?: boolean
@@ -43,7 +44,7 @@ export type CardHandOptions = {
 
 type PointerSwipeState = {
     pointerId: number
-    lastX: number
+    lastY: number
     velocity: number
     lastTime: number
 }
@@ -76,6 +77,7 @@ export class CardHand {
     private readonly translucent: boolean
     private readonly minViewportHeight: number
     private readonly cardWidth: number
+    private readonly cardHeight: number
     private readonly gap: number
     private readonly enableTouchInertia: boolean
     private readonly onViewportChange?: (viewport: CardHandViewport) => void
@@ -97,10 +99,10 @@ export class CardHand {
     private readonly progressLabel: HTMLDivElement
     private readonly viewport: HTMLDivElement
     private readonly strip: HTMLDivElement
-    private readonly leftShade: HTMLDivElement
-    private readonly rightShade: HTMLDivElement
-    private readonly leftButton: HTMLButtonElement
-    private readonly rightButton: HTMLButtonElement
+    private readonly topShade: HTMLDivElement
+    private readonly bottomShade: HTMLDivElement
+    private readonly upButton: HTMLButtonElement
+    private readonly downButton: HTMLButtonElement
 
     private cards: InternalCard[] = []
     private instanceIdCounter = 0
@@ -118,6 +120,7 @@ export class CardHand {
         this.translucent = options.translucent ?? true
         this.minViewportHeight = options.height ?? 300
         this.cardWidth = options.cardWidth ?? 336
+        this.cardHeight = options.cardHeight ?? Math.floor(this.cardWidth * 1.4)
         this.gap = options.gap ?? 10
         this.enableTouchInertia = options.enableTouchInertia ?? true
         this.onViewportChange = options.onViewportChange
@@ -192,32 +195,32 @@ export class CardHand {
         this.strip = document.createElement('div')
         this.strip.className = 'card-hand-widget__strip'
         this.strip.style.gap = `${this.gap}px`
-        this.strip.style.padding = `0 ${this.gap}px`
+        this.strip.style.padding = `${this.gap}px 0`
 
         this.viewport.appendChild(this.strip)
         this.panel.appendChild(this.viewport)
 
-        this.leftShade = document.createElement('div')
-        this.leftShade.className = 'card-hand-widget__shade card-hand-widget__shade--left'
+        this.topShade = document.createElement('div')
+        this.topShade.className = 'card-hand-widget__shade card-hand-widget__shade--top'
 
-        this.rightShade = document.createElement('div')
-        this.rightShade.className = 'card-hand-widget__shade card-hand-widget__shade--right'
+        this.bottomShade = document.createElement('div')
+        this.bottomShade.className = 'card-hand-widget__shade card-hand-widget__shade--bottom'
 
-        this.leftButton = document.createElement('button')
-        this.leftButton.type = 'button'
-        this.leftButton.className = 'card-hand-widget__nav card-hand-widget__nav--left'
-        this.leftButton.setAttribute('aria-label', 'Сдвинуть влево')
-        this.leftButton.textContent = '←'
-        this.leftButton.addEventListener('click', () => this.nudge(-1))
+        this.upButton = document.createElement('button')
+        this.upButton.type = 'button'
+        this.upButton.className = 'card-hand-widget__nav card-hand-widget__nav--up'
+        this.upButton.setAttribute('aria-label', 'Прокрутить вверх')
+        this.upButton.textContent = '↑'
+        this.upButton.addEventListener('click', () => this.nudge(-1))
 
-        this.rightButton = document.createElement('button')
-        this.rightButton.type = 'button'
-        this.rightButton.className = 'card-hand-widget__nav card-hand-widget__nav--right'
-        this.rightButton.setAttribute('aria-label', 'Сдвинуть вправо')
-        this.rightButton.textContent = '→'
-        this.rightButton.addEventListener('click', () => this.nudge(1))
+        this.downButton = document.createElement('button')
+        this.downButton.type = 'button'
+        this.downButton.className = 'card-hand-widget__nav card-hand-widget__nav--down'
+        this.downButton.setAttribute('aria-label', 'Прокрутить вниз')
+        this.downButton.textContent = '↓'
+        this.downButton.addEventListener('click', () => this.nudge(1))
 
-        this.panel.append(this.leftShade, this.rightShade, this.leftButton, this.rightButton)
+        this.panel.append(this.topShade, this.bottomShade, this.upButton, this.downButton)
 
         const initialCards = options.cards ?? []
         if (initialCards.length > 0) {
@@ -347,9 +350,9 @@ export class CardHand {
         }
         wrapper.dataset.id = card.instanceId
         wrapper.dataset.index = String(index)
-        wrapper.style.width = `${this.cardWidth}px`
-        wrapper.style.flex = `0 0 ${this.cardWidth}px`
-        wrapper.style.scrollSnapAlign = 'center'
+        wrapper.style.width = '100%'
+        wrapper.style.flex = '0 0 auto'
+        wrapper.style.scrollSnapAlign = 'start'
 
         const button = document.createElement('button')
         button.type = 'button'
@@ -357,7 +360,10 @@ export class CardHand {
         button.setAttribute('data-card-button', 'true')
         button.dataset.cardEffect = card.effect
         button.dataset.cardType = card.id
-        button.style.height = `${Math.floor(this.cardWidth * 1.4)}px`
+        button.style.width = '100%'
+        button.style.maxWidth = `${this.cardWidth}px`
+        button.style.margin = '0 auto'
+        button.style.minHeight = `${this.cardHeight}px`
         button.addEventListener('pointerdown', (event) => this.handleCardPointerDown(card, event))
 
         const cardInner = document.createElement('div')
@@ -430,7 +436,7 @@ export class CardHand {
         wrapper.appendChild(button)
         this.strip.appendChild(wrapper)
 
-        const baseHeight = Math.floor(this.cardWidth * 1.4)
+        const baseHeight = this.cardHeight
         const contentHeight = Math.ceil(cardInner.scrollHeight)
         button.style.height = `${Math.max(baseHeight, contentHeight)}px`
 
@@ -451,8 +457,8 @@ export class CardHand {
             return
         }
         event.preventDefault()
-        const delta = event.deltaY + event.deltaX
-        this.viewport.scrollLeft += delta
+        const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+        this.viewport.scrollTop += dominantDelta
         this.scheduleSnap()
         this.emitViewport()
     }
@@ -463,10 +469,10 @@ export class CardHand {
     }
 
     private handleKeyDown = (event: KeyboardEvent) => {
-        if (event.key === 'ArrowRight') {
+        if (event.key === 'ArrowDown') {
             event.preventDefault()
             this.nudge(1)
-        } else if (event.key === 'ArrowLeft') {
+        } else if (event.key === 'ArrowUp') {
             event.preventDefault()
             this.nudge(-1)
         }
@@ -540,7 +546,7 @@ export class CardHand {
 
         this.pointerSwipe = {
             pointerId: event.pointerId,
-            lastX: event.clientX,
+            lastY: event.clientY,
             velocity: 0,
             lastTime: performance.now(),
         }
@@ -556,14 +562,14 @@ export class CardHand {
             return
         }
 
-        const dx = event.clientX - this.pointerSwipe.lastX
+        const dy = event.clientY - this.pointerSwipe.lastY
         const dt = Math.max(1, performance.now() - this.pointerSwipe.lastTime)
-        const velocity = dx / dt
-        this.pointerSwipe.lastX = event.clientX
+        const velocity = dy / dt
+        this.pointerSwipe.lastY = event.clientY
         this.pointerSwipe.lastTime = performance.now()
         this.pointerSwipe.velocity = velocity
 
-        this.viewport.scrollLeft -= dx
+        this.viewport.scrollTop -= dy
         this.emitViewport()
     }
 
@@ -729,7 +735,7 @@ export class CardHand {
             const dt = time - lastTime
             lastTime = time
 
-            this.viewport.scrollLeft -= velocity * dt * 0.06
+            this.viewport.scrollTop -= velocity * dt * 0.06
             velocity *= friction
 
             if (Math.abs(velocity) > 0.05) {
@@ -744,23 +750,20 @@ export class CardHand {
     }
 
     private updateLayout() {
-        const totalWidth = this.cards.length * (this.cardWidth + this.gap) + this.gap
-        const viewportWidth = this.viewport.clientWidth
-        const shouldCenter = totalWidth < viewportWidth
-        this.strip.classList.toggle('card-hand-widget__strip--centered', shouldCenter)
+        this.strip.classList.remove('card-hand-widget__strip--centered')
         this.updateIndicators()
         this.updateEmptyState()
     }
 
     private updateIndicators() {
-        const maxScroll = Math.max(0, this.viewport.scrollWidth - this.viewport.clientWidth)
-        const leftVisible = this.viewport.scrollLeft > 4
-        const rightVisible = this.viewport.scrollLeft < maxScroll - 4
+        const maxScroll = Math.max(0, this.viewport.scrollHeight - this.viewport.clientHeight)
+        const topVisible = this.viewport.scrollTop > 4
+        const bottomVisible = this.viewport.scrollTop < maxScroll - 4
 
-        this.leftShade.classList.toggle('card-hand-widget__shade--visible', leftVisible)
-        this.rightShade.classList.toggle('card-hand-widget__shade--visible', rightVisible)
-        this.leftButton.classList.toggle('card-hand-widget__nav--visible', leftVisible)
-        this.rightButton.classList.toggle('card-hand-widget__nav--visible', rightVisible)
+        this.topShade.classList.toggle('card-hand-widget__shade--visible', topVisible)
+        this.bottomShade.classList.toggle('card-hand-widget__shade--visible', bottomVisible)
+        this.upButton.classList.toggle('card-hand-widget__nav--visible', topVisible)
+        this.downButton.classList.toggle('card-hand-widget__nav--visible', bottomVisible)
 
         const visibleCount = this.getVisibleCount()
         if (this.cards.length > 20 && visibleCount > 0) {
@@ -813,21 +816,21 @@ export class CardHand {
     }
 
     private getVisibleCount(): number {
-        const pitch = this.cardWidth + this.gap
+        const pitch = this.cardHeight + this.gap
         if (pitch <= 0) {
             return 1
         }
-        return Math.max(1, Math.floor((this.viewport.clientWidth + this.gap) / pitch))
+        return Math.max(1, Math.floor((this.viewport.clientHeight + this.gap) / pitch))
     }
 
     private getFirstVisibleIndex(): number {
-        const pitch = this.cardWidth + this.gap
-        return Math.max(0, Math.floor(this.viewport.scrollLeft / pitch))
+        const pitch = this.cardHeight + this.gap
+        return Math.max(0, Math.floor(this.viewport.scrollTop / pitch))
     }
 
     private nudge(direction: number) {
-        const pitch = this.cardWidth + this.gap
-        this.viewport.scrollBy({ left: direction * pitch, behavior: 'smooth' })
+        const pitch = this.cardHeight + this.gap
+        this.viewport.scrollBy({ top: direction * pitch, behavior: 'smooth' })
         this.scheduleSnap()
     }
 
@@ -844,13 +847,13 @@ export class CardHand {
         if (this.cards.length === 0) {
             return
         }
-        const pitch = this.cardWidth + this.gap
-        const scroll = this.viewport.scrollLeft
-        const center = scroll + this.viewport.clientWidth / 2
-        const index = Math.round((center - this.cardWidth / 2) / pitch)
+        const pitch = this.cardHeight + this.gap
+        const scroll = this.viewport.scrollTop
+        const center = scroll + this.viewport.clientHeight / 2
+        const index = Math.round((center - this.cardHeight / 2) / pitch)
         const clamped = Math.max(0, Math.min(this.cards.length - 1, index))
         const target = clamped * pitch
-        this.viewport.scrollTo({ left: target, behavior: 'smooth' })
+        this.viewport.scrollTo({ top: target, behavior: 'smooth' })
     }
 
     private scrollToCard(id: string) {
@@ -858,10 +861,10 @@ export class CardHand {
         if (index === -1) {
             return
         }
-        const pitch = this.cardWidth + this.gap
+        const pitch = this.cardHeight + this.gap
         const target = index * pitch
-        const offset = target - (this.viewport.clientWidth - this.cardWidth) / 2
-        this.viewport.scrollTo({ left: Math.max(0, offset), behavior: 'smooth' })
+        const offset = target - (this.viewport.clientHeight - this.cardHeight) / 2
+        this.viewport.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' })
         this.scheduleSnap()
     }
 
@@ -1126,7 +1129,7 @@ export class CardHand {
             .card-hand-widget__viewport {
                 position: relative;
                 overflow-x: hidden;
-                overflow-y: visible;
+                overflow-y: auto;
                 border-radius: 16px;
                 background: rgba(15, 23, 42, 0.55);
                 border: 1px solid rgba(148, 163, 184, 0.25);
@@ -1160,15 +1163,16 @@ export class CardHand {
 
             .card-hand-widget__strip {
                 display: flex;
-                align-items: center;
+                flex-direction: column;
+                align-items: stretch;
                 position: relative;
-                height: 100%;
+                width: 100%;
                 min-height: 100%;
                 transition: transform 0.3s ease;
             }
 
             .card-hand-widget__strip--centered {
-                justify-content: center;
+                align-items: center;
             }
 
             .card-hand-widget__card-wrapper {
@@ -1437,22 +1441,22 @@ export class CardHand {
 
             .card-hand-widget__shade {
                 position: absolute;
-                top: 0;
-                bottom: 0;
-                width: 64px;
+                left: 0;
+                right: 0;
+                height: 72px;
                 pointer-events: none;
                 opacity: 0;
                 transition: opacity 0.2s ease;
             }
 
-            .card-hand-widget__shade--left {
-                left: 0;
-                background: linear-gradient(90deg, rgba(9, 13, 24, 0.7), transparent);
+            .card-hand-widget__shade--top {
+                top: 0;
+                background: linear-gradient(180deg, rgba(9, 13, 24, 0.7), transparent);
             }
 
-            .card-hand-widget__shade--right {
-                right: 0;
-                background: linear-gradient(270deg, rgba(9, 13, 24, 0.7), transparent);
+            .card-hand-widget__shade--bottom {
+                bottom: 0;
+                background: linear-gradient(0deg, rgba(9, 13, 24, 0.7), transparent);
             }
 
             .card-hand-widget__shade--visible {
@@ -1461,8 +1465,8 @@ export class CardHand {
 
             .card-hand-widget__nav {
                 position: absolute;
-                top: 50%;
-                transform: translateY(-50%);
+                left: 50%;
+                transform: translate(-50%, 0);
                 background: rgba(15, 23, 42, 0.85);
                 border: 1px solid rgba(148, 163, 184, 0.4);
                 border-radius: 999px;
@@ -1478,12 +1482,12 @@ export class CardHand {
                 transition: opacity 0.2s ease;
             }
 
-            .card-hand-widget__nav--left {
-                left: 10px;
+            .card-hand-widget__nav--up {
+                top: 18px;
             }
 
-            .card-hand-widget__nav--right {
-                right: 10px;
+            .card-hand-widget__nav--down {
+                bottom: 18px;
             }
 
             .card-hand-widget__nav--visible {
