@@ -107,6 +107,35 @@ canvas {
     flex-direction: column;
 }
 
+#left-top {
+    align-items: stretch;
+}
+
+#hand-panel {
+    flex: 1;
+    display: flex;
+}
+
+#hand-panel > * {
+    flex: 1;
+}
+
+#middle-bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+#character-panel {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+#character-panel > * {
+    flex: 0 0 auto;
+}
+
 #map-panel {
     flex: 1;
     min-height: 0;
