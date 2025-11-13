@@ -74,7 +74,7 @@ export class CardHand {
     private readonly ownsRoot: boolean
     private readonly root: HTMLElement
     private readonly translucent: boolean
-    private readonly height: number
+    private readonly minViewportHeight: number
     private readonly cardWidth: number
     private readonly gap: number
     private readonly enableTouchInertia: boolean
@@ -109,14 +109,16 @@ export class CardHand {
     private scrollSnapTimer?: number
     private activeDrag?: ActiveCardDrag
     private endTurnPending = false
+    private resizeObserver?: ResizeObserver
+    private removeWindowResizeListener?: () => void
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
         this.ownsRoot = !root
         this.root = root ?? this.createOverlayRoot()
         this.translucent = options.translucent ?? true
-        this.height = options.height ?? 300
-        this.cardWidth = options.cardWidth ?? 168
-        this.gap = options.gap ?? 14
+        this.minViewportHeight = options.height ?? 300
+        this.cardWidth = options.cardWidth ?? 336
+        this.gap = options.gap ?? 10
         this.enableTouchInertia = options.enableTouchInertia ?? true
         this.onViewportChange = options.onViewportChange
         this.onMoveCardDrop = options.onMoveCardDrop
@@ -143,7 +145,7 @@ export class CardHand {
 
         this.instructionsLabel = document.createElement('div')
         this.instructionsLabel.className = 'card-hand-widget__instructions'
-        this.instructionsLabel.textContent = 'Перетащите карту действия на карту экспедиции'
+        this.instructionsLabel.style.display = 'none'
 
         const deckChipElements = this.createZoneChip('Колода', 'deck')
         this.deckChip = deckChipElements.element
@@ -175,7 +177,9 @@ export class CardHand {
         this.viewport = document.createElement('div')
         this.viewport.className = 'card-hand-widget__viewport'
         this.viewport.tabIndex = 0
-        this.viewport.style.height = `${this.height}px`
+        this.viewport.style.minHeight = `${this.minViewportHeight}px`
+        this.viewport.style.flex = '1 1 auto'
+        this.viewport.style.maxHeight = '100%'
         this.viewport.addEventListener('wheel', this.handleWheel, { passive: false })
         this.viewport.addEventListener('scroll', this.handleScroll)
         this.viewport.addEventListener('keydown', this.handleKeyDown)
@@ -221,6 +225,9 @@ export class CardHand {
         } else {
             this.updateEmptyState()
         }
+
+        this.initializeResizeHandling()
+        this.updateViewportHeight()
     }
 
     addCard(card: CardHandCard) {
@@ -306,6 +313,14 @@ export class CardHand {
         this.viewport.removeEventListener('pointerup', this.handleViewportPointerUp)
         this.viewport.removeEventListener('pointermove', this.handleViewportPointerMove)
         this.endTurnButton.removeEventListener('click', this.handleEndTurnClick)
+
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect()
+        }
+        if (this.removeWindowResizeListener) {
+            this.removeWindowResizeListener()
+            this.removeWindowResizeListener = undefined
+        }
 
         if (this.scrollSnapTimer) {
             window.clearTimeout(this.scrollSnapTimer)
@@ -932,6 +947,35 @@ export class CardHand {
         return root
     }
 
+    private initializeResizeHandling() {
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.updateViewportHeight()
+            })
+            this.resizeObserver.observe(this.panel)
+        } else {
+            const listener = () => this.updateViewportHeight()
+            window.addEventListener('resize', listener)
+            this.removeWindowResizeListener = () => window.removeEventListener('resize', listener)
+        }
+    }
+
+    private updateViewportHeight = () => {
+        const panelHeight = this.panel.clientHeight
+        if (!panelHeight) {
+            return
+        }
+        const style = window.getComputedStyle(this.panel)
+        const paddingTop = parseFloat(style.paddingTop) || 0
+        const paddingBottom = parseFloat(style.paddingBottom) || 0
+        const gap = parseFloat(style.rowGap || style.gap || '0') || 0
+        const available = panelHeight - paddingTop - paddingBottom - this.header.offsetHeight - gap
+        const target = Math.max(this.minViewportHeight, available)
+        if (Number.isFinite(target)) {
+            this.viewport.style.height = `${target}px`
+        }
+    }
+
     private static injectStyles() {
         if (this.stylesInjected) {
             return
@@ -944,7 +988,7 @@ export class CardHand {
                 display: flex;
                 align-items: flex-end;
                 justify-content: center;
-                padding: 24px;
+                padding: 16px;
                 pointer-events: none;
                 z-index: 2000;
             }
@@ -957,8 +1001,8 @@ export class CardHand {
                 position: relative;
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
-                padding: 16px 18px 20px;
+                gap: 8px;
+                padding: 12px 14px 16px;
                 background: rgba(11, 15, 25, 0.9);
                 border: 1px solid rgba(148, 163, 184, 0.3);
                 border-radius: 18px;
@@ -977,7 +1021,7 @@ export class CardHand {
             .card-hand-widget__header {
                 display: flex;
                 align-items: center;
-                gap: 12px;
+                gap: 8px;
             }
 
             .card-hand-widget__instructions {
@@ -993,15 +1037,15 @@ export class CardHand {
             .card-hand-widget__zones {
                 display: none;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
                 flex-shrink: 0;
             }
 
             .card-hand-widget__chip {
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
-                padding: 4px 10px;
+                gap: 4px;
+                padding: 3px 8px;
                 border-radius: 999px;
                 border: 1px solid rgba(148, 163, 184, 0.35);
                 background: rgba(30, 41, 59, 0.6);
@@ -1435,11 +1479,11 @@ export class CardHand {
             }
 
             .card-hand-widget__nav--left {
-                left: 12px;
+                left: 10px;
             }
 
             .card-hand-widget__nav--right {
-                right: 12px;
+                right: 10px;
             }
 
             .card-hand-widget__nav--visible {
@@ -1480,7 +1524,7 @@ export class CardHand {
 
             @media (max-width: 768px) {
                 .card-hand-widget__panel {
-                    padding: 12px;
+                    padding: 10px;
                 }
                 .card-hand-widget__card {
                     padding: 10px 10px 12px;
