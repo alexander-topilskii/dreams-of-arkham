@@ -345,39 +345,80 @@ export class CardHand {
         button.style.height = `${Math.floor(this.cardWidth * 1.4)}px`
         button.addEventListener('pointerdown', (event) => this.handleCardPointerDown(card, event))
 
+        const cardInner = document.createElement('div')
+        cardInner.className = 'card-hand-widget__card-inner'
+
+        const artFrame = document.createElement('div')
+        artFrame.className = 'card-hand-widget__art-frame'
+
         const art = document.createElement('div')
         art.className = 'card-hand-widget__art'
         if (card.artUrl) {
             const img = document.createElement('img')
             img.src = card.artUrl
             img.alt = card.title
+            img.decoding = 'async'
+            img.loading = 'lazy'
+            img.addEventListener('error', () => {
+                img.remove()
+                this.applyArtFallback(art, card)
+            })
             art.appendChild(img)
+        } else {
+            this.applyArtFallback(art, card)
         }
 
-        const meta = document.createElement('div')
-        meta.className = 'card-hand-widget__meta'
+        artFrame.appendChild(art)
+
+        const body = document.createElement('div')
+        body.className = 'card-hand-widget__card-body'
 
         const title = document.createElement('div')
         title.className = 'card-hand-widget__title'
         title.textContent = card.title
         title.title = card.title
 
-        const cost = document.createElement('span')
-        cost.className = 'card-hand-widget__cost'
-        cost.innerHTML = `💠 <strong>${card.cost}</strong>`
+        const flavor = document.createElement('div')
+        flavor.className = 'card-hand-widget__flavor'
+
+        const effect = document.createElement('div')
+        effect.className = 'card-hand-widget__effect'
+
+        const effectLabel = document.createElement('span')
+        effectLabel.textContent = 'Эффект'
+
+        const effectText = document.createElement('p')
+        effectText.className = 'card-hand-widget__effect-text'
+        effectText.textContent = this.getEffectDescription(card.effect)
+
+        effect.append(effectLabel, effectText)
+
+        const cost = document.createElement('div')
+        cost.className = 'card-hand-widget__cost-chip'
+        cost.textContent = String(card.cost)
         cost.title = `Стоимость: ${card.cost}`
 
-        meta.append(title, cost)
+        body.append(title)
 
-        const description = document.createElement('div')
-        description.className = 'card-hand-widget__description'
-        description.textContent = card.description
-        description.title = card.description
+        if (card.description?.trim()) {
+            flavor.textContent = card.description
+            flavor.title = card.description
+            body.append(flavor)
+        }
 
-        button.append(art, meta, description)
+        body.append(effect, cost)
+
+        cardInner.append(artFrame, body)
+
+        button.append(cardInner)
 
         wrapper.appendChild(button)
         this.strip.appendChild(wrapper)
+
+        const baseHeight = Math.floor(this.cardWidth * 1.4)
+        const contentHeight = Math.ceil(cardInner.scrollHeight)
+        button.style.height = `${Math.max(baseHeight, contentHeight)}px`
+
         this.cardElements.set(card.instanceId, wrapper)
     }
 
@@ -819,6 +860,40 @@ export class CardHand {
         chip.classList.toggle('card-hand-widget__chip--empty', isEmpty)
     }
 
+    private applyArtFallback(art: HTMLDivElement, card: InternalCard) {
+        art.classList.add('card-hand-widget__art--fallback')
+        art.dataset.effectGlyph = this.getEffectGlyph(card.effect)
+        art.title = card.title
+        art.setAttribute('role', 'img')
+        art.setAttribute('aria-label', card.title)
+    }
+
+    private getEffectDescription(effect: CardEffect): string {
+        switch (effect) {
+            case 'move':
+                return 'Переместитесь в соседнюю область.'
+            case 'attack':
+                return 'Атакуйте угрозу поблизости.'
+            case 'hide':
+                return 'Сокройтесь от взгляда врагов.'
+            case 'search':
+                return 'Исследуйте местность и найдите улики.'
+        }
+    }
+
+    private getEffectGlyph(effect: CardEffect): string {
+        switch (effect) {
+            case 'move':
+                return '⇥'
+            case 'attack':
+                return '✦'
+            case 'hide':
+                return '☽'
+            case 'search':
+                return '✸'
+        }
+    }
+
     private createZoneChip(label: string, modifier?: string): ZoneChipElements {
         const chip = document.createElement('div')
         chip.className = 'card-hand-widget__chip'
@@ -1081,65 +1156,103 @@ export class CardHand {
 
             .card-hand-widget__card {
                 width: 100%;
-                background: linear-gradient(180deg, rgba(71, 85, 105, 0.45) 0%, rgba(30, 41, 59, 0.9) 100%);
-                border: 1px solid rgba(148, 163, 184, 0.3);
-                border-radius: 20px;
-                padding: 12px 12px 14px;
+                background: transparent;
+                border: none;
+                padding: 0;
+                cursor: grab;
+                font: inherit;
                 color: inherit;
-                font-family: inherit;
-                display: grid;
-                grid-template-rows: minmax(140px, 1fr) auto 1fr;
-                gap: 8px;
-                cursor: pointer;
-                box-shadow: 0 ${CARD_ELEVATION}px 24px rgba(15, 23, 42, 0.35);
-                transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-                overflow: hidden;
-            }
-
-            .card-hand-widget__card:hover {
-                transform: translateY(-4px) scale(1.05);
-                box-shadow: 0 24px 36px rgba(14, 21, 37, 0.55);
-                border-color: rgba(250, 204, 21, 0.6);
+                perspective: 1200px;
+                position: relative;
+                transition: transform 0.35s ease;
             }
 
             .card-hand-widget__card:focus-visible {
                 outline: none;
-                box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.65);
             }
 
-            .card-hand-widget__card-wrapper--dragging .card-hand-widget__card {
-                transform: translateY(-12px) scale(1.08);
+            .card-hand-widget__card:active {
+                cursor: grabbing;
+            }
+
+            .card-hand-widget__card-inner {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+                border-radius: 22px;
+                border: 1px solid rgba(148, 163, 184, 0.28);
+                background:
+                    radial-gradient(circle at 20% 20%, rgba(96, 165, 250, 0.22), transparent 60%),
+                    radial-gradient(circle at 80% 10%, rgba(56, 189, 248, 0.14), transparent 55%),
+                    linear-gradient(160deg, rgba(30, 41, 59, 0.95), rgba(30, 64, 175, 0.82));
+                box-shadow: 0 ${CARD_ELEVATION}px 32px rgba(15, 23, 42, 0.45);
+                padding: 16px 16px 18px;
+                overflow: hidden;
+                transition:
+                    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+                    box-shadow 0.4s ease,
+                    border-color 0.3s ease,
+                    filter 0.4s ease;
+                transform-style: preserve-3d;
+            }
+
+            .card-hand-widget__card-inner::after {
+                content: '';
+                position: absolute;
+                inset: -60% -40% 40% 40%;
+                background: linear-gradient(120deg, rgba(148, 197, 255, 0.15), rgba(56, 189, 248, 0));
+                transform: rotate(12deg);
+                opacity: 0;
+                transition: opacity 0.4s ease;
+                pointer-events: none;
+            }
+
+            .card-hand-widget__card:hover .card-hand-widget__card-inner,
+            .card-hand-widget__card:focus-visible .card-hand-widget__card-inner {
+                transform: rotateY(-6deg) translateY(-8px) scale(1.02);
+                box-shadow: 0 26px 46px rgba(15, 23, 42, 0.6);
+                border-color: rgba(250, 204, 21, 0.65);
+            }
+
+            .card-hand-widget__card:hover .card-hand-widget__card-inner::after,
+            .card-hand-widget__card:focus-visible .card-hand-widget__card-inner::after {
+                opacity: 1;
+            }
+
+            .card-hand-widget__card-wrapper--dragging .card-hand-widget__card-inner {
+                transform: rotateY(-4deg) translateY(-16px) scale(1.06);
                 border-color: rgba(250, 204, 21, 0.9);
-                box-shadow: 0 30px 46px rgba(250, 204, 21, 0.3);
+                box-shadow: 0 34px 56px rgba(250, 204, 21, 0.32);
             }
 
             .card-hand-widget__card-wrapper--dragging::after {
                 content: '';
                 position: absolute;
-                inset: -6px;
-                border-radius: 24px;
-                border: 2px solid rgba(250, 204, 21, 0.6);
+                inset: -8px;
+                border-radius: 26px;
+                border: 2px solid rgba(250, 204, 21, 0.65);
                 pointer-events: none;
-                box-shadow: 0 0 32px rgba(250, 204, 21, 0.35);
+                box-shadow: 0 0 36px rgba(250, 204, 21, 0.35);
             }
 
             .card-hand-widget__card-wrapper--error {
                 animation: card-hand-widget__shake 0.4s ease;
             }
 
-            .card-hand-widget__card-wrapper--error .card-hand-widget__card {
+            .card-hand-widget__card-wrapper--error .card-hand-widget__card-inner {
                 border-color: rgba(248, 113, 113, 0.85);
-                box-shadow: 0 24px 34px rgba(248, 113, 113, 0.28);
+                box-shadow: 0 28px 42px rgba(248, 113, 113, 0.28);
             }
 
             .card-hand-widget__card-wrapper--error::after {
                 content: '';
                 position: absolute;
-                inset: -6px;
-                border-radius: 24px;
-                border: 2px solid rgba(248, 113, 113, 0.6);
+                inset: -8px;
+                border-radius: 26px;
+                border: 2px solid rgba(248, 113, 113, 0.65);
                 pointer-events: none;
-                box-shadow: 0 0 26px rgba(248, 113, 113, 0.3);
+                box-shadow: 0 0 28px rgba(248, 113, 113, 0.3);
             }
 
             @keyframes card-hand-widget__shake {
@@ -1151,10 +1264,21 @@ export class CardHand {
                 100% { transform: translateX(0); }
             }
 
-            .card-hand-widget__art {
-                border-radius: 16px;
+            .card-hand-widget__art-frame {
+                position: relative;
+                border-radius: 18px;
                 overflow: hidden;
-                background: linear-gradient(135deg, rgba(96, 165, 250, 0.45), rgba(37, 99, 235, 0.75));
+                background: linear-gradient(140deg, rgba(15, 23, 42, 0.85), rgba(30, 64, 175, 0.65));
+                min-height: 180px;
+                display: flex;
+            }
+
+            .card-hand-widget__art {
+                flex: 1;
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
             .card-hand-widget__art img {
@@ -1164,49 +1288,107 @@ export class CardHand {
                 display: block;
             }
 
-            .card-hand-widget__title {
-                font-size: 15px;
-                font-weight: 600;
-                letter-spacing: 0.01em;
-                text-align: left;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
+            .card-hand-widget__art--fallback {
+                background: radial-gradient(circle at center, rgba(59, 130, 246, 0.35), rgba(30, 41, 59, 0.9));
+                color: rgba(191, 219, 254, 0.9);
+                font-size: 48px;
+                letter-spacing: 0.08em;
+                text-shadow: 0 8px 18px rgba(14, 21, 37, 0.65);
             }
 
-            .card-hand-widget__meta {
+            .card-hand-widget__art--fallback::before {
+                content: attr(data-effect-glyph);
+            }
+
+            .card-hand-widget__card-body {
                 display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 8px;
+                flex-direction: column;
+                gap: 10px;
+                padding-top: 16px;
+                flex: 1;
             }
 
-            .card-hand-widget__cost {
+            .card-hand-widget__title {
+                font-size: 18px;
+                font-weight: 600;
+                letter-spacing: 0.02em;
+                text-align: center;
+                text-transform: uppercase;
+            }
+
+            .card-hand-widget__flavor {
+                font-size: 14px;
+                font-style: italic;
+                line-height: 1.5;
+                color: rgba(226, 232, 240, 0.85);
+                text-align: center;
+            }
+
+            .card-hand-widget__effect {
+                font-size: 14px;
+                line-height: 1.5;
+                background: rgba(59, 130, 246, 0.14);
+                border-left: 3px solid rgba(125, 211, 252, 0.5);
+                border-radius: 14px;
+                padding: 12px 14px;
+                text-align: left;
+                color: rgba(226, 232, 240, 0.92);
+                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.18);
+            }
+
+            .card-hand-widget__effect span {
+                display: block;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: rgba(191, 219, 254, 0.85);
+                margin-bottom: 6px;
+            }
+
+            .card-hand-widget__effect-text {
+                margin: 0;
+                font-size: 14px;
+                color: inherit;
+            }
+
+            .card-hand-widget__cost-chip {
+                margin: auto;
+                margin-top: 6px;
                 display: inline-flex;
                 align-items: center;
-                gap: 4px;
-                font-size: 13px;
-                font-weight: 600;
-                padding: 2px 8px;
+                justify-content: center;
+                width: 52px;
+                height: 52px;
                 border-radius: 999px;
-                background: rgba(59, 130, 246, 0.18);
-                border: 1px solid rgba(59, 130, 246, 0.3);
-                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.2);
-            }
-
-            .card-hand-widget__cost strong {
+                background: radial-gradient(circle, rgba(14, 165, 233, 0.9), rgba(30, 64, 175, 0.95));
+                border: 2px solid rgba(191, 219, 254, 0.75);
+                box-shadow: 0 12px 24px rgba(14, 165, 233, 0.32);
                 font-weight: 700;
+                font-size: 18px;
+                color: rgba(240, 249, 255, 0.95);
+                position: relative;
             }
 
-            .card-hand-widget__description {
-                font-size: 13px;
-                line-height: 1.45;
-                opacity: 0.88;
-                text-align: left;
-                display: -webkit-box;
-                -webkit-line-clamp: 4;
-                -webkit-box-orient: vertical;
-                overflow: hidden;
+            .card-hand-widget__cost-chip::before,
+            .card-hand-widget__cost-chip::after {
+                content: '';
+                position: absolute;
+                width: 6px;
+                height: 6px;
+                border-radius: 999px;
+                background: rgba(226, 232, 240, 0.85);
+                opacity: 0.6;
+            }
+
+            .card-hand-widget__cost-chip::before {
+                left: 10px;
+                top: 12px;
+            }
+
+            .card-hand-widget__cost-chip::after {
+                right: 10px;
+                bottom: 12px;
             }
 
             .card-hand-widget__shade {
