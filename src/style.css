@@ -198,6 +198,41 @@ canvas {
     cursor: grabbing; /* курсор при нажатии — “схватил” */
 }
 
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto; /* на мобильных разрешаем вертикальную прокрутку */
+    }
+
+    #main-split {
+        flex-direction: column; /* панели идут друг за другом в столбец */
+        height: auto;
+        min-height: 100vh;
+    }
+
+    #left,
+    #middle,
+    #right,
+    #left-split,
+    #middle-split,
+    #right-split {
+        width: 100%;
+        height: auto;
+    }
+
+    #left-top,
+    #left-bottom,
+    #middle-top,
+    #middle-bottom,
+    #right-top,
+    #right-bottom {
+        width: 100%;
+    }
+
+    .gutter.gutter-horizontal {
+        display: none; /* скрываем горизонтальные разделители для мобильной версии */
+    }
+}
+
 
 .debug-panel-toggle {
     position: fixed;
