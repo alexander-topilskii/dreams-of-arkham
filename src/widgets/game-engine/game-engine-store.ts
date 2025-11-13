@@ -42,6 +42,10 @@ export type EnemyInfo = {
     id: string;
     name: string;
     locationId: string | null;
+    maxHealth: number;
+    health: number;
+    damage: number;
+    cardInstanceId?: string;
 };
 
 export type CombatState = {
@@ -140,7 +144,18 @@ export type GameEvent =
     | { type: "eventDeck:revealed"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:reshuffled"; deck: EventDeckState }
     | { type: "eventDeck:discarded"; deck: EventDeckState; cardId: string }
-    | { type: "enemy:spawned"; enemyId: string; enemyName: string; locationId: string }
+    | {
+          type: "enemy:spawned";
+          enemyId: string;
+          enemyName: string;
+          locationId: string;
+          maxHealth?: number;
+          health?: number;
+          damage?: number;
+          cardInstanceId?: string;
+      }
+    | { type: "enemy:damaged"; enemyId: string; amount: number; remainingHealth: number }
+    | { type: "enemy:defeated"; enemyId: string }
     | { type: "combat:enemyEvaded"; enemyId: string; card: HandCardDescriptor }
     | { type: "combat:enemiesEvaded"; enemyIds: readonly string[]; card: HandCardDescriptor }
     | { type: "combat:refresh" }
@@ -423,7 +438,15 @@ export class GameEngineStore {
                 break;
             }
             case "enemy:spawned": {
-                this.registerEnemy(event.enemyId, event.enemyName, event.locationId);
+                this.registerEnemy(event);
+                break;
+            }
+            case "enemy:damaged": {
+                this.applyEnemyDamage(event.enemyId, event.remainingHealth);
+                break;
+            }
+            case "enemy:defeated": {
+                this.removeEnemy(event.enemyId);
                 break;
             }
             case "combat:enemyEvaded": {
@@ -614,16 +637,30 @@ export class GameEngineStore {
         };
     }
 
-    private registerEnemy(enemyId: string, enemyName: string, locationId: string): void {
-        const id = enemyId.trim();
+    private registerEnemy(event: {
+        enemyId: string;
+        enemyName: string;
+        locationId: string | null;
+        maxHealth?: number;
+        health?: number;
+        damage?: number;
+        cardInstanceId?: string;
+    }): void {
+        const id = event.enemyId.trim();
         if (!id) {
             return;
         }
 
+        const maxHealth = normalizeEnemyMaxHealth(event.maxHealth ?? event.health);
+        const currentHealth = normalizeEnemyCurrentHealth(event.health, maxHealth);
         const info: EnemyInfo = {
             id,
-            name: enemyName,
-            locationId: locationId?.trim() ?? null,
+            name: event.enemyName,
+            locationId: event.locationId?.trim() ?? null,
+            maxHealth,
+            health: currentHealth,
+            damage: normalizeEnemyDamage(event.damage),
+            cardInstanceId: event.cardInstanceId?.trim() || undefined,
         };
 
         this.state = {
@@ -634,7 +671,93 @@ export class GameEngineStore {
             },
         };
 
+        this.updateDeckEnemyState(id, (card) => {
+            card.healthRemaining = info.health;
+            card.damage = info.damage;
+        });
+
         this.reevaluateEngagements();
+    }
+
+    private applyEnemyDamage(enemyId: string, remainingHealth: number): void {
+        const id = enemyId?.trim();
+        if (!id) {
+            return;
+        }
+
+        const info = this.state.enemies[id];
+        if (!info) {
+            return;
+        }
+
+        const nextHealth = Math.max(0, Math.min(info.maxHealth, Math.floor(remainingHealth)));
+        if (nextHealth === info.health) {
+            return;
+        }
+
+        const updated: EnemyInfo = { ...info, health: nextHealth };
+
+        this.state = {
+            ...this.state,
+            enemies: {
+                ...this.state.enemies,
+                [id]: updated,
+            },
+        };
+
+        this.updateDeckEnemyState(id, (card) => {
+            card.healthRemaining = nextHealth;
+        });
+    }
+
+    private updateDeckEnemyState(enemyId: string, updater: (card: EventDeckCardConfig) => void): void {
+        const deckState = this.state.deck;
+        if (!deckState) {
+            return;
+        }
+
+        const normalizedId = enemyId?.trim();
+        if (!normalizedId) {
+            return;
+        }
+
+        const snapshot = cloneDeckState(deckState);
+        let modified = false;
+
+        const updateCard = (card: EventDeckCardConfig | undefined): void => {
+            if (!card) {
+                return;
+            }
+            updater(card);
+            modified = true;
+        };
+
+        const updateList = (cards: EventDeckCardConfig[]): void => {
+            for (let index = 0; index < cards.length; index += 1) {
+                const card = cards[index];
+                if (card.linkedCharacterId?.trim() === normalizedId) {
+                    updateCard(cards[index]);
+                    return;
+                }
+            }
+        };
+
+        updateList(snapshot.revealed);
+        if (!modified) {
+            updateList(snapshot.discardPile);
+        }
+        if (!modified) {
+            updateList(snapshot.drawPile);
+        }
+
+        if (!modified) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            deck: snapshot,
+        };
     }
 
     private setEnemyLocation(enemyId: string, locationId: string | null): void {
@@ -1029,6 +1152,33 @@ function normalizePlayerHealthState(health: PlayerHealthState | undefined): Play
     return { current, max };
 }
 
+function normalizeEnemyMaxHealth(raw?: number): number {
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+        const normalized = Math.floor(raw);
+        return Math.max(1, normalized);
+    }
+
+    return 1;
+}
+
+function normalizeEnemyCurrentHealth(raw: number | undefined, max: number): number {
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+        const normalized = Math.floor(raw);
+        return Math.max(0, Math.min(max, normalized));
+    }
+
+    return max;
+}
+
+function normalizeEnemyDamage(raw?: number): number {
+    if (typeof raw === "number" && Number.isFinite(raw)) {
+        const normalized = Math.floor(raw);
+        return Math.max(0, normalized);
+    }
+
+    return 1;
+}
+
 function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
     return cards.map((card, index) => {
         const baseId = card.id?.trim() ? card.id.trim() : `event-card-${index + 1}`;
@@ -1039,6 +1189,17 @@ function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCa
             instanceId,
             inPlay: false,
         };
+
+        if (typeof card.health === "number" || typeof card.healthRemaining === "number") {
+            const maxHealth = normalizeEnemyMaxHealth(card.health ?? card.healthRemaining);
+            prepared.health = maxHealth;
+            prepared.healthRemaining = normalizeEnemyCurrentHealth(card.healthRemaining ?? card.health, maxHealth);
+        }
+
+        if (typeof card.damage === "number") {
+            prepared.damage = normalizeEnemyDamage(card.damage);
+        }
+
         delete prepared.linkedCharacterId;
         delete prepared.locationId;
         delete prepared.locationTitle;
@@ -1202,6 +1363,17 @@ function spawnEnemyFromCard(
         return { events: [] };
     }
 
+    const maxHealth = normalizeEnemyMaxHealth(card.health);
+    const healthRemaining = normalizeEnemyCurrentHealth(
+        card.healthRemaining ?? card.health,
+        maxHealth,
+    );
+    const damage = normalizeEnemyDamage(card.damage);
+
+    card.health = maxHealth;
+    card.healthRemaining = healthRemaining;
+    card.damage = damage;
+
     const characterId = createEnemyTokenId(card);
     card.inPlay = true;
     card.linkedCharacterId = characterId;
@@ -1217,7 +1389,16 @@ function spawnEnemyFromCard(
 
     const userMessage = `«${card.title}» появляется в ${territory.front.title}.`;
     const events: GameEvent[] = [
-        { type: "enemy:spawned", enemyId: characterId, enemyName: card.title, locationId: territory.id },
+        {
+            type: "enemy:spawned",
+            enemyId: characterId,
+            enemyName: card.title,
+            locationId: territory.id,
+            maxHealth,
+            health: healthRemaining,
+            damage,
+            cardInstanceId: card.instanceId,
+        },
         { type: "map:characterPlaced", territoryId: territory.id, character },
         { type: "log", channel: "user", message: userMessage },
         {
@@ -1397,6 +1578,144 @@ export class MoveWithCardCommand implements GameCommand {
             message: `move:${card.id}:${currentLocationId}->${targetLocationId}`,
         });
         events.push({ type: "move:success", card, from: currentLocationId, to: targetLocationId });
+
+        return events;
+    }
+}
+
+export class AttackEnemyWithCardCommand implements GameCommand {
+    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+
+    public execute(context: GameEngineContext): GameEvent[] {
+        const events: GameEvent[] = [];
+        const card = this.card;
+        const playerName = context.config.player.name;
+        const currentLocationId = context.state.currentLocationId;
+
+        if (!currentLocationId) {
+            return this.createFailure(events, "no-current-location", `${playerName} не может атаковать из неизвестной локации.`);
+        }
+
+        if (this.targetLocationId && this.targetLocationId !== currentLocationId) {
+            const message = `${playerName} должен использовать «${card.title}» в своей текущей локации.`;
+            return this.createFailure(events, "wrong-location", message);
+        }
+
+        const engagedEnemies = context.state.combat.engagedEnemyIds;
+        if (engagedEnemies.length === 0) {
+            const message = `${playerName} размахивает «${card.title}», но враги не вступили в бой.`;
+            return this.createFailure(events, "not-engaged", message);
+        }
+
+        if (context.state.actionsRemaining < card.cost) {
+            const message = `${playerName} слишком вымотан, чтобы провести атаку (нужно ${card.cost} действий).`;
+            return this.createFailure(events, "not-enough-actions", message);
+        }
+
+        const enemyId = engagedEnemies[0];
+        const enemyInfo = context.state.enemies[enemyId];
+        if (!enemyInfo) {
+            const message = `${playerName} теряет цель — враг исчез.`;
+            return this.createFailure(events, "not-engaged", message);
+        }
+
+        const nextActions = context.state.actionsRemaining - card.cost;
+        const damage = 1;
+        const remainingHealth = Math.max(0, enemyInfo.health - damage);
+        const enemyName = enemyInfo.name ?? "врага";
+        const successMessage =
+            remainingHealth > 0
+                ? `${playerName} использует «${card.title}» и наносит ${damage} урон ${enemyName} (осталось ${remainingHealth}/${enemyInfo.maxHealth}).`
+                : `${playerName} использует «${card.title}» и побеждает ${enemyName}.`;
+
+        events.push({ type: "actions:update", actionsRemaining: nextActions });
+        events.push({ type: "enemy:damaged", enemyId, amount: damage, remainingHealth });
+        events.push({ type: "log", channel: "user", message: successMessage });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:attack:${enemyId}:${damage}` });
+
+        if (remainingHealth <= 0) {
+            events.push(...this.handleEnemyDefeat(context, enemyId, enemyInfo));
+        }
+
+        events.push({ type: "card:play:success", card, message: successMessage });
+
+        return events;
+    }
+
+    private createFailure(
+        events: GameEvent[],
+        reason: CardPlayFailureReason,
+        message: string,
+    ): GameEvent[] {
+        const card = this.card;
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:failure:${reason}` });
+        events.push({ type: "card:play:failure", card, reason, message });
+        return events;
+    }
+
+    private handleEnemyDefeat(
+        context: GameEngineContext,
+        enemyId: string,
+        enemyInfo: EnemyInfo,
+    ): GameEvent[] {
+        const events: GameEvent[] = [];
+        const deckState = context.state.deck;
+        let discarded = false;
+        let discardStatus: EventDeckStatus | undefined;
+
+        if (deckState) {
+            const snapshot = cloneDeckState(deckState);
+            const index = snapshot.revealed.findIndex((card) => card.linkedCharacterId?.trim() === enemyId);
+
+            if (index !== -1) {
+                const [card] = snapshot.revealed.splice(index, 1);
+                const movedCard: EventDeckCardConfig = {
+                    ...card,
+                    inPlay: false,
+                    linkedCharacterId: undefined,
+                    locationId: undefined,
+                    locationTitle: undefined,
+                    healthRemaining: 0,
+                };
+
+                snapshot.discardPile = [...snapshot.discardPile, movedCard];
+                discardStatus = {
+                    message: `«${card.title}» побеждён и отправлен в сброс.`,
+                    variant: "success",
+                };
+                snapshot.status = mergeEventDeckStatus(snapshot.status, discardStatus);
+                discarded = true;
+
+                events.push({
+                    type: "eventDeck:discarded",
+                    deck: snapshot,
+                    cardId: card.instanceId ?? card.id,
+                });
+            }
+        }
+
+        events.push({ type: "enemy:defeated", enemyId });
+        events.push({ type: "map:characterRemoved", characterId: enemyId });
+
+        const currentCluesRaw = context.state.victoryProgress["collectedClues"];
+        const currentClues = typeof currentCluesRaw === "number" && Number.isFinite(currentCluesRaw)
+            ? currentCluesRaw
+            : 0;
+        const nextClues = currentClues + 1;
+        events.push({ type: "progress:victoryUpdate", progress: { collectedClues: nextClues } });
+
+        const clueMessage = `${context.config.player.name} обыскивает ${enemyInfo.name} и находит улику.`;
+        events.push({ type: "log", channel: "user", message: clueMessage });
+        events.push({ type: "log", channel: "system", message: `combat:enemy_defeated:${enemyId}:clue` });
+
+        if (!discarded) {
+            events.push({
+                type: "log",
+                channel: "system",
+                message: `combat:enemy_defeated:${enemyId}:discard_missing`,
+            });
+        }
 
         return events;
     }
@@ -1647,15 +1966,24 @@ export class EndTurnCommand extends BaseGameEngineStoreCommand {
                 .map((enemyId) => context.state.enemies[enemyId]?.name)
                 .filter((name): name is string => Boolean(name));
             const enemyNote = enemyNames.length > 0 ? ` (${enemyNames.join(', ')})` : '';
-            const damageMessage = `${playerName} подвергается натиску врагов${enemyNote} и теряет 1 здоровье.`;
+            const totalDamage = engagedBeforeEnd.reduce((sum, enemyId) => {
+                const info = context.state.enemies[enemyId];
+                const damage = info ? Math.max(0, Math.floor(info.damage)) : 0;
+                return sum + damage;
+            }, 0);
 
-            events.push({ type: "player:damage", amount: 1, source: "engaged-enemies" });
-            events.push({ type: "log", channel: "user", message: damageMessage });
-            events.push({
-                type: "log",
-                channel: "system",
-                message: `combat:engaged_damage:${engagedBeforeEnd.join(',')}`,
-            });
+            if (totalDamage > 0) {
+                const healthWord = totalDamage === 1 ? "здоровье" : "здоровья";
+                const damageMessage = `${playerName} подвергается натиску врагов${enemyNote} и теряет ${totalDamage} ${healthWord}.`;
+
+                events.push({ type: "player:damage", amount: totalDamage, source: "engaged-enemies" });
+                events.push({ type: "log", channel: "user", message: damageMessage });
+                events.push({
+                    type: "log",
+                    channel: "system",
+                    message: `combat:engaged_damage:${engagedBeforeEnd.join(',')}:${totalDamage}`,
+                });
+            }
         }
 
         events.push({ type: "actions:update", actionsRemaining: context.initialActions });

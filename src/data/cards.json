@@ -25,6 +25,14 @@
       "effect": "heal"
     },
     {
+      "id": "attack",
+      "title": "Атака",
+      "description": "Нанесите точный удар и нанесите врагу 1 урон.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "attack"
+    },
+    {
       "id": "walk",
       "title": "Прогуляться",
       "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",

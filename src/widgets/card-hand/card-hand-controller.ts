@@ -1,6 +1,7 @@
 import { CardHand, type CardHandCard, type CardHandDropResult } from "./card-hand";
 import {
     AddDebugCardCommand,
+    AttackEnemyWithCardCommand,
     ConsumeCardCommand,
     EndTurnCommand,
     EvadeAllEnemiesWithCardCommand,
@@ -51,6 +52,9 @@ export class CardHandController {
         switch (card.effect) {
             case "move":
                 this.store.dispatch(new MoveWithCardCommand(descriptor, territoryId));
+                break;
+            case "attack":
+                this.store.dispatch(new AttackEnemyWithCardCommand(descriptor, territoryId));
                 break;
             case "evade":
                 this.store.dispatch(new EvadeEnemyWithCardCommand(descriptor, territoryId));

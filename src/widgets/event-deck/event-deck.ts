@@ -13,6 +13,9 @@ export interface EventDeckCardConfig {
     linkedCharacterId?: string;
     locationId?: string;
     locationTitle?: string;
+    health?: number;
+    damage?: number;
+    healthRemaining?: number;
 }
 
 export interface EventDeckConfig {
