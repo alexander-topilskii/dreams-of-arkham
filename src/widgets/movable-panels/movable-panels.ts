@@ -59,7 +59,7 @@ export class MovablePanels {
     leftSplit = Split(['#left', '#middle', '#right'], {
         sizes: this.getStoredSizes('left', [25, 25, 50]),
         minSize: [160, 160, 200],
-        gutterSize: 8,
+        gutterSize: 4,
         direction: 'horizontal',
         onDrag: () => {
             this.triggerRightResize()
@@ -72,7 +72,7 @@ export class MovablePanels {
     leftTopBottomSplit = Split(['#left-top', '#left-bottom'], {
         sizes: this.getStoredSizes('leftVertical', [50, 50]),
         minSize: [50, 200],
-        gutterSize: 8,
+        gutterSize: 4,
         direction: 'vertical',
         onDrag: () => {
             this.triggerRightResize()
@@ -85,7 +85,7 @@ export class MovablePanels {
     middleTopBottomSplit = Split(['#middle-top', '#middle-bottom'], {
         sizes: this.getStoredSizes('middleVertical', [50, 50]),
         minSize: [80, 80],
-        gutterSize: 8,
+        gutterSize: 4,
         direction: 'vertical',
         onDrag: () => {
             this.triggerRightResize()
@@ -98,7 +98,7 @@ export class MovablePanels {
     rightTopBottomSplit = Split(['#right-top', '#right-bottom'], {
         sizes: this.getStoredSizes('rightVertical', [65, 35]),
         minSize: [120, 80],
-        gutterSize: 8,
+        gutterSize: 4,
         direction: 'vertical',
         onDrag: () => {
             this.triggerRightResize()
