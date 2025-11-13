@@ -427,9 +427,9 @@ export class CardHand {
             body.append(flavor)
         }
 
-        body.append(effect, cost)
+        body.append(effect)
 
-        cardInner.append(artFrame, body)
+        cardInner.append(cost, artFrame, body)
 
         button.append(cardInner)
 
@@ -1237,38 +1237,56 @@ export class CardHand {
                 flex-direction: column;
                 height: 100%;
                 border-radius: 22px;
-                border: 1px solid rgba(148, 163, 184, 0.28);
-                background:
-                    radial-gradient(circle at 20% 20%, rgba(96, 165, 250, 0.22), transparent 60%),
-                    radial-gradient(circle at 80% 10%, rgba(56, 189, 248, 0.14), transparent 55%),
-                    linear-gradient(160deg, rgba(30, 41, 59, 0.95), rgba(30, 64, 175, 0.82));
-                box-shadow: 0 ${CARD_ELEVATION}px 32px rgba(15, 23, 42, 0.45);
-                padding: 16px 16px 18px;
+                border: 1px solid rgba(148, 197, 255, 0.28);
+                background: linear-gradient(155deg, rgba(15, 23, 42, 0.76), rgba(59, 130, 246, 0.18));
+                box-shadow: 0 ${CARD_ELEVATION}px 36px rgba(8, 12, 24, 0.55);
+                padding: 18px 20px 22px;
                 overflow: hidden;
                 transition:
                     transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-                    box-shadow 0.4s ease,
-                    border-color 0.3s ease,
-                    filter 0.4s ease;
+                    box-shadow 0.45s ease,
+                    border-color 0.35s ease,
+                    filter 0.45s ease;
                 transform-style: preserve-3d;
+                backdrop-filter: blur(18px);
+                -webkit-backdrop-filter: blur(18px);
+            }
+
+            .card-hand-widget__card-inner::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                border-radius: inherit;
+                background:
+                    radial-gradient(circle at 18% 12%, rgba(148, 197, 255, 0.18), transparent 45%),
+                    radial-gradient(circle at 82% 24%, rgba(96, 165, 250, 0.12), transparent 50%),
+                    linear-gradient(140deg, rgba(148, 163, 184, 0.08), rgba(15, 23, 42, 0.65));
+                pointer-events: none;
+                opacity: 0.9;
             }
 
             .card-hand-widget__card-inner::after {
                 content: '';
                 position: absolute;
-                inset: -60% -40% 40% 40%;
-                background: linear-gradient(120deg, rgba(148, 197, 255, 0.15), rgba(56, 189, 248, 0));
-                transform: rotate(12deg);
+                inset: -65% -55% 30% 30%;
+                border-radius: inherit;
+                background: linear-gradient(120deg, rgba(241, 245, 249, 0.18), rgba(59, 130, 246, 0));
+                transform: rotate(10deg);
                 opacity: 0;
-                transition: opacity 0.4s ease;
+                transition: opacity 0.5s ease;
                 pointer-events: none;
+            }
+
+            .card-hand-widget__card-inner > * {
+                position: relative;
+                z-index: 1;
             }
 
             .card-hand-widget__card:hover .card-hand-widget__card-inner,
             .card-hand-widget__card:focus-visible .card-hand-widget__card-inner {
-                transform: rotateY(-6deg) translateY(-8px) scale(1.02);
-                box-shadow: 0 26px 46px rgba(15, 23, 42, 0.6);
-                border-color: rgba(250, 204, 21, 0.65);
+                transform: rotateY(-5deg) translateY(-10px) scale(1.03);
+                box-shadow: 0 30px 60px rgba(8, 12, 24, 0.7);
+                border-color: rgba(165, 243, 252, 0.55);
             }
 
             .card-hand-widget__card:hover .card-hand-widget__card-inner::after,
@@ -1322,18 +1340,22 @@ export class CardHand {
 
             .card-hand-widget__art-frame {
                 position: relative;
-                border-radius: 18px;
+                border-radius: 16px;
                 overflow: hidden;
-                background: linear-gradient(140deg, rgba(15, 23, 42, 0.85), rgba(30, 64, 175, 0.65));
-                min-height: 180px;
+                background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(59, 130, 246, 0.55));
+                flex: 0 0 48%;
+                min-height: clamp(160px, 48%, 220px);
                 display: flex;
+                align-items: stretch;
+                margin: -6px -4px 18px;
+                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.2);
             }
 
             .card-hand-widget__art {
                 flex: 1;
                 position: relative;
                 display: flex;
-                align-items: center;
+                align-items: flex-start;
                 justify-content: center;
             }
 
@@ -1341,6 +1363,7 @@ export class CardHand {
                 width: 100%;
                 height: 100%;
                 object-fit: cover;
+                object-position: center top;
                 display: block;
             }
 
@@ -1359,92 +1382,93 @@ export class CardHand {
             .card-hand-widget__card-body {
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
-                padding-top: 16px;
+                gap: 14px;
+                padding-top: 0;
                 flex: 1;
+                justify-content: flex-start;
+                color: rgba(226, 232, 240, 0.92);
             }
 
             .card-hand-widget__title {
-                font-size: 18px;
+                font-size: 20px;
                 font-weight: 600;
-                letter-spacing: 0.02em;
-                text-align: center;
+                letter-spacing: 0.01em;
                 text-transform: uppercase;
+                text-align: left;
             }
 
             .card-hand-widget__flavor {
-                font-size: 14px;
-                font-style: italic;
-                line-height: 1.5;
-                color: rgba(226, 232, 240, 0.85);
-                text-align: center;
+                font-size: 15px;
+                line-height: 1.6;
+                color: rgba(226, 232, 240, 0.9);
+                text-align: left;
+                white-space: pre-line;
             }
 
             .card-hand-widget__effect {
-                font-size: 14px;
-                line-height: 1.5;
-                background: rgba(59, 130, 246, 0.14);
-                border-left: 3px solid rgba(125, 211, 252, 0.5);
+                font-size: 15px;
+                line-height: 1.6;
+                background: rgba(148, 197, 255, 0.1);
+                border-left: 2px solid rgba(125, 211, 252, 0.55);
                 border-radius: 14px;
-                padding: 12px 14px;
+                padding: 14px 16px;
                 text-align: left;
-                color: rgba(226, 232, 240, 0.92);
-                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.18);
+                color: rgba(226, 232, 240, 0.95);
+                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.22);
             }
 
             .card-hand-widget__effect span {
                 display: block;
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 700;
-                letter-spacing: 0.2em;
+                letter-spacing: 0.16em;
                 text-transform: uppercase;
-                color: rgba(191, 219, 254, 0.85);
-                margin-bottom: 6px;
+                color: rgba(191, 219, 254, 0.75);
+                margin-bottom: 8px;
             }
 
             .card-hand-widget__effect-text {
                 margin: 0;
-                font-size: 14px;
-                color: inherit;
+                font-size: 15px;
+                white-space: pre-line;
             }
 
             .card-hand-widget__cost-chip {
-                margin: auto;
-                margin-top: 6px;
+                position: absolute;
+                top: 18px;
+                right: 18px;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                width: 52px;
-                height: 52px;
+                width: 44px;
+                height: 44px;
                 border-radius: 999px;
-                background: radial-gradient(circle, rgba(14, 165, 233, 0.9), rgba(30, 64, 175, 0.95));
-                border: 2px solid rgba(191, 219, 254, 0.75);
-                box-shadow: 0 12px 24px rgba(14, 165, 233, 0.32);
-                font-weight: 700;
-                font-size: 18px;
-                color: rgba(240, 249, 255, 0.95);
-                position: relative;
+                background: radial-gradient(circle at 30% 20%, rgba(224, 242, 254, 0.9), rgba(59, 130, 246, 0.75));
+                border: 1px solid rgba(191, 219, 254, 0.65);
+                box-shadow:
+                    0 0 16px rgba(165, 243, 252, 0.55),
+                    0 12px 24px rgba(15, 23, 42, 0.45);
+                font-weight: 600;
+                font-size: 16px;
+                color: rgba(15, 23, 42, 0.9);
+                text-shadow: 0 0 8px rgba(191, 219, 254, 0.75);
+                letter-spacing: 0.06em;
+                animation: card-hand-widget__rune-glow 4s ease-in-out infinite;
+                z-index: 2;
             }
 
-            .card-hand-widget__cost-chip::before,
-            .card-hand-widget__cost-chip::after {
-                content: '';
-                position: absolute;
-                width: 6px;
-                height: 6px;
-                border-radius: 999px;
-                background: rgba(226, 232, 240, 0.85);
-                opacity: 0.6;
-            }
-
-            .card-hand-widget__cost-chip::before {
-                left: 10px;
-                top: 12px;
-            }
-
-            .card-hand-widget__cost-chip::after {
-                right: 10px;
-                bottom: 12px;
+            @keyframes card-hand-widget__rune-glow {
+                0%,
+                100% {
+                    box-shadow:
+                        0 0 16px rgba(165, 243, 252, 0.6),
+                        0 12px 24px rgba(15, 23, 42, 0.45);
+                }
+                50% {
+                    box-shadow:
+                        0 0 28px rgba(191, 219, 254, 0.85),
+                        0 14px 30px rgba(8, 12, 24, 0.6);
+                }
             }
 
             .card-hand-widget__shade {
