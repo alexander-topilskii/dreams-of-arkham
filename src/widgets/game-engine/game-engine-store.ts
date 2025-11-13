@@ -26,6 +26,7 @@ export type GameEngineConfig = {
     initialActions: number;
     playerCount?: number;
     initialDeckState?: EventDeckState;
+    playerHealth: PlayerHealthState;
 };
 
 export type GameProgressSlice = Record<string, number | boolean>;
@@ -33,6 +34,24 @@ export type GameProgressSlice = Record<string, number | boolean>;
 export type GameMapState = {
     revealedTerritoryIds: string[];
     characterPlacements: ExpeditionMapCharacterPlacement[];
+};
+
+export type PlayerHealthState = { current: number; max: number };
+
+export type EnemyInfo = {
+    id: string;
+    name: string;
+    locationId: string | null;
+};
+
+export type CombatState = {
+    engagedEnemyIds: string[];
+    evadedEnemyIds: string[];
+};
+
+export type EngagedEnemyView = {
+    readonly id: string;
+    readonly name: string;
 };
 
 export type GameMapViewModel = {
@@ -73,6 +92,9 @@ export type GameEngineState = {
     defeatProgress: GameProgressSlice;
     map: GameMapState;
     deck?: EventDeckState;
+    playerHealth: PlayerHealthState;
+    enemies: Record<string, EnemyInfo>;
+    combat: CombatState;
 };
 
 export type GameViewModel = {
@@ -91,6 +113,8 @@ export type GameViewModel = {
     readonly defeatProgress: Readonly<GameProgressSlice>;
     readonly map: GameMapViewModel;
     readonly deck?: EventDeckViewModel;
+    readonly playerHealth: PlayerHealthState;
+    readonly engagedEnemies: readonly EngagedEnemyView[];
 };
 
 export type GameEvent =
@@ -100,8 +124,8 @@ export type GameEvent =
     | { type: "location:reveal"; locationId: string }
     | { type: "player:place"; locationId: string }
     | { type: "location:set"; locationId: string }
-    | { type: "move:success"; card: MoveCardDescriptor; from: string; to: string }
-    | { type: "move:failure"; card: MoveCardDescriptor; reason: MoveFailureReason; message: string }
+    | { type: "move:success"; card: HandCardDescriptor; from: string; to: string }
+    | { type: "move:failure"; card: HandCardDescriptor; reason: MoveFailureReason; message: string }
     | { type: "turn:ended"; actionsRemaining: number; drawnEvents: number }
     | { type: "card:added"; card: HandCardContent; reason?: "draw" | "debug" | "manual" }
     | { type: "card:consumed"; card: HandCardContent; reason?: "consume" | "discard" | "debug" }
@@ -115,11 +139,19 @@ export type GameEvent =
     | { type: "eventDeck:triggered"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:revealed"; deck: EventDeckState; drawn: readonly EventDeckCardConfig[] }
     | { type: "eventDeck:reshuffled"; deck: EventDeckState }
-    | { type: "eventDeck:discarded"; deck: EventDeckState; cardId: string };
+    | { type: "eventDeck:discarded"; deck: EventDeckState; cardId: string }
+    | { type: "enemy:spawned"; enemyId: string; enemyName: string; locationId: string }
+    | { type: "combat:enemyEvaded"; enemyId: string; card: HandCardDescriptor }
+    | { type: "combat:enemiesEvaded"; enemyIds: readonly string[]; card: HandCardDescriptor }
+    | { type: "combat:refresh" }
+    | { type: "card:play:success"; card: HandCardDescriptor; message?: string }
+    | { type: "card:play:failure"; card: HandCardDescriptor; reason: CardPlayFailureReason; message: string }
+    | { type: "player:damage"; amount: number; source?: string }
+    | { type: "player:heal"; amount: number; source?: string };
 
 export type GameEventSubscriber = (event: GameEvent, viewModel: GameViewModel) => void;
 
-export type MoveCardDescriptor = {
+export type HandCardDescriptor = {
     id: string;
     title: string;
     cost: number;
@@ -129,6 +161,13 @@ export type MoveFailureReason =
     | "no-current-location"
     | "unknown-location"
     | "not-adjacent"
+    | "not-enough-actions"
+    | "engaged";
+
+export type CardPlayFailureReason =
+    | "no-current-location"
+    | "wrong-location"
+    | "not-engaged"
     | "not-enough-actions";
 
 export type GameEngineContext = {
@@ -211,6 +250,8 @@ export class GameEngineStore {
         this.discardPile = [];
         this.hand = this.drawCardsFromDeck(this.handSize);
 
+        const initialHealth = normalizePlayerHealthState(config.playerHealth);
+
         this.state = {
             currentLocationId: null,
             actionsRemaining: this.initialActions,
@@ -223,6 +264,9 @@ export class GameEngineStore {
                 characterPlacements: cloneCharacterPlacements(config.mapConfig.characters ?? []),
             },
             deck: config.initialDeckState ? cloneDeckState(config.initialDeckState) : undefined,
+            playerHealth: initialHealth,
+            enemies: {},
+            combat: { engagedEnemyIds: [], evadedEnemyIds: [] },
         };
 
         this.viewModel = this.buildViewModel();
@@ -378,6 +422,36 @@ export class GameEngineStore {
                 this.applyDeckState(event.deck);
                 break;
             }
+            case "enemy:spawned": {
+                this.registerEnemy(event.enemyId, event.enemyName, event.locationId);
+                break;
+            }
+            case "combat:enemyEvaded": {
+                this.markEnemiesEvaded([event.enemyId]);
+                break;
+            }
+            case "combat:enemiesEvaded": {
+                this.markEnemiesEvaded(event.enemyIds);
+                break;
+            }
+            case "combat:refresh": {
+                this.resetEvadedEnemies();
+                break;
+            }
+            case "card:play:success": {
+                break;
+            }
+            case "card:play:failure": {
+                break;
+            }
+            case "player:damage": {
+                this.applyPlayerDamage(event.amount);
+                break;
+            }
+            case "player:heal": {
+                this.applyPlayerHeal(event.amount);
+                break;
+            }
         }
 
         this.viewModel = this.buildViewModel();
@@ -456,6 +530,7 @@ export class GameEngineStore {
 
     private setCurrentLocation(locationId: string | null): void {
         this.state = { ...this.state, currentLocationId: locationId };
+        this.reevaluateEngagements();
     }
 
     private registerTerritory(territory: TerritoryConfig): void {
@@ -489,6 +564,8 @@ export class GameEngineStore {
                 characterPlacements: characters,
             },
         };
+
+        this.setEnemyLocation(normalized.character.id, normalized.territoryId);
 
         const configCharacters = this.config.mapConfig.characters ?? [];
         const configIndex = configCharacters.findIndex((entry) => entry.character.id === normalized.character.id);
@@ -526,12 +603,238 @@ export class GameEngineStore {
         this.config.mapConfig.characters = configCharacters.filter(
             (entry) => entry.character.id !== normalized,
         );
+
+        this.removeEnemy(normalized);
     }
 
     private applyDeckState(deck: EventDeckState): void {
         this.state = {
             ...this.state,
             deck: cloneDeckState(deck),
+        };
+    }
+
+    private registerEnemy(enemyId: string, enemyName: string, locationId: string): void {
+        const id = enemyId.trim();
+        if (!id) {
+            return;
+        }
+
+        const info: EnemyInfo = {
+            id,
+            name: enemyName,
+            locationId: locationId?.trim() ?? null,
+        };
+
+        this.state = {
+            ...this.state,
+            enemies: {
+                ...this.state.enemies,
+                [id]: info,
+            },
+        };
+
+        this.reevaluateEngagements();
+    }
+
+    private setEnemyLocation(enemyId: string, locationId: string | null): void {
+        const id = enemyId?.trim();
+        if (!id) {
+            return;
+        }
+
+        const info = this.state.enemies[id];
+        if (!info) {
+            return;
+        }
+
+        const normalizedLocation = locationId?.trim() ?? null;
+        if (info.locationId === normalizedLocation) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            enemies: {
+                ...this.state.enemies,
+                [id]: { ...info, locationId: normalizedLocation },
+            },
+        };
+
+        this.reevaluateEngagements();
+    }
+
+    private removeEnemy(enemyId: string): void {
+        const id = enemyId?.trim();
+        if (!id || !this.state.enemies[id]) {
+            return;
+        }
+
+        const { [id]: _removed, ...rest } = this.state.enemies;
+        const combat = {
+            engagedEnemyIds: this.state.combat.engagedEnemyIds.filter((entry) => entry !== id),
+            evadedEnemyIds: this.state.combat.evadedEnemyIds.filter((entry) => entry !== id),
+        };
+
+        this.state = {
+            ...this.state,
+            enemies: rest,
+            combat,
+        };
+
+        this.reevaluateEngagements();
+    }
+
+    private markEnemiesEvaded(enemyIds: readonly string[]): void {
+        if (!enemyIds || enemyIds.length === 0) {
+            return;
+        }
+
+        const evadedSet = new Set(this.state.combat.evadedEnemyIds);
+        let updated = false;
+
+        for (const rawId of enemyIds) {
+            const id = rawId?.trim();
+            if (!id) {
+                continue;
+            }
+            if (!evadedSet.has(id)) {
+                evadedSet.add(id);
+                updated = true;
+            }
+        }
+
+        const engagedEnemyIds = this.state.combat.engagedEnemyIds.filter((id) => !evadedSet.has(id));
+        const evadedEnemyIds = Array.from(evadedSet);
+
+        if (!updated && engagedEnemyIds.length === this.state.combat.engagedEnemyIds.length) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            combat: {
+                engagedEnemyIds,
+                evadedEnemyIds,
+            },
+        };
+
+        this.reevaluateEngagements();
+    }
+
+    private resetEvadedEnemies(): void {
+        if (this.state.combat.evadedEnemyIds.length === 0 && this.state.combat.engagedEnemyIds.length === 0) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            combat: {
+                engagedEnemyIds: this.state.combat.engagedEnemyIds,
+                evadedEnemyIds: [],
+            },
+        };
+
+        this.reevaluateEngagements();
+    }
+
+    private reevaluateEngagements(): void {
+        const currentLocationId = this.state.currentLocationId?.trim() ?? null;
+        if (!currentLocationId) {
+            if (this.state.combat.engagedEnemyIds.length > 0 || this.state.combat.evadedEnemyIds.length > 0) {
+                this.state = {
+                    ...this.state,
+                    combat: { engagedEnemyIds: [], evadedEnemyIds: [] },
+                };
+            }
+            return;
+        }
+
+        const evadedSet = new Set(this.state.combat.evadedEnemyIds);
+        const engaged: string[] = [];
+        const retainedEvaded: string[] = [];
+
+        for (const placement of this.state.map.characterPlacements) {
+            if (placement.territoryId !== currentLocationId) {
+                continue;
+            }
+
+            const characterId = placement.character.id;
+            if (characterId === this.config.player.id) {
+                continue;
+            }
+
+            if (!this.state.enemies[characterId]) {
+                continue;
+            }
+
+            if (evadedSet.has(characterId)) {
+                retainedEvaded.push(characterId);
+                continue;
+            }
+
+            engaged.push(characterId);
+        }
+
+        if (
+            engaged.length === this.state.combat.engagedEnemyIds.length &&
+            retainedEvaded.length === this.state.combat.evadedEnemyIds.length &&
+            engaged.every((id, index) => this.state.combat.engagedEnemyIds[index] === id) &&
+            retainedEvaded.every((id, index) => this.state.combat.evadedEnemyIds[index] === id)
+        ) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            combat: {
+                engagedEnemyIds: engaged,
+                evadedEnemyIds: retainedEvaded,
+            },
+        };
+    }
+
+    private applyPlayerDamage(amount: number): void {
+        const normalized = Math.max(0, Math.floor(amount));
+        if (normalized <= 0) {
+            return;
+        }
+
+        const next = Math.max(0, this.state.playerHealth.current - normalized);
+        if (next === this.state.playerHealth.current) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            playerHealth: {
+                ...this.state.playerHealth,
+                current: next,
+            },
+        };
+    }
+
+    private applyPlayerHeal(amount: number): void {
+        const normalized = Math.max(0, Math.floor(amount));
+        if (normalized <= 0) {
+            return;
+        }
+
+        const next = Math.min(
+            this.state.playerHealth.max,
+            this.state.playerHealth.current + normalized,
+        );
+
+        if (next === this.state.playerHealth.current) {
+            return;
+        }
+
+        this.state = {
+            ...this.state,
+            playerHealth: {
+                ...this.state.playerHealth,
+                current: next,
+            },
         };
     }
 
@@ -556,6 +859,8 @@ export class GameEngineStore {
                 characterPlacements: cloneCharacterPlacements(this.state.map.characterPlacements),
             },
             deck: this.state.deck ? cloneDeckState(this.state.deck) : undefined,
+            playerHealth: { ...this.state.playerHealth },
+            engagedEnemies: this.buildEngagedEnemiesView(),
         };
     }
 
@@ -644,6 +949,20 @@ export class GameEngineStore {
             handSize: this.handSize,
         };
     }
+
+    private buildEngagedEnemiesView(): EngagedEnemyView[] {
+        if (this.state.combat.engagedEnemyIds.length === 0) {
+            return [];
+        }
+
+        return this.state.combat.engagedEnemyIds.map((enemyId) => {
+            const info = this.state.enemies[enemyId];
+            return {
+                id: enemyId,
+                name: info?.name ?? "Неизвестный враг",
+            };
+        });
+    }
 }
 
 function normalizeHandDefinitions(definitions: readonly HandCardDefinition[]): HandCardDefinition[] {
@@ -700,6 +1019,14 @@ function cloneDeckState(state: EventDeckState): EventDeckState {
         discardPile: state.discardPile.map((card) => ({ ...card })),
         status: state.status ? { ...state.status } : undefined,
     };
+}
+
+function normalizePlayerHealthState(health: PlayerHealthState | undefined): PlayerHealthState {
+    const max = Math.max(0, Math.floor(health?.max ?? 0));
+    const currentRaw = Math.floor(health?.current ?? max);
+    const current = Math.min(max, Math.max(0, currentRaw));
+
+    return { current, max };
 }
 
 function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
@@ -890,6 +1217,7 @@ function spawnEnemyFromCard(
 
     const userMessage = `«${card.title}» появляется в ${territory.front.title}.`;
     const events: GameEvent[] = [
+        { type: "enemy:spawned", enemyId: characterId, enemyName: card.title, locationId: territory.id },
         { type: "map:characterPlaced", territoryId: territory.id, character },
         { type: "log", channel: "user", message: userMessage },
         {
@@ -999,7 +1327,7 @@ function resolveEventNoun(count: number): string {
 }
 
 export class MoveWithCardCommand implements GameCommand {
-    constructor(private readonly card: MoveCardDescriptor, private readonly targetLocationId: string) {}
+    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId: string) {}
 
     public execute(context: GameEngineContext): GameEvent[] {
         const card = this.card;
@@ -1010,6 +1338,15 @@ export class MoveWithCardCommand implements GameCommand {
         if (!currentLocationId) {
             const reason: MoveFailureReason = "no-current-location";
             const message = `${context.config.player.name} не знает, где находится. Карта не сработала.`;
+            events.push({ type: "log", channel: "user", message });
+            events.push({ type: "log", channel: "system", message: `move:${card.id}:failure:${reason}` });
+            events.push({ type: "move:failure", card, reason, message });
+            return events;
+        }
+
+        if (context.state.combat.engagedEnemyIds.length > 0) {
+            const reason: MoveFailureReason = "engaged";
+            const message = `${context.config.player.name} не может уйти, пока сражается с врагами.`;
             events.push({ type: "log", channel: "user", message });
             events.push({ type: "log", channel: "system", message: `move:${card.id}:failure:${reason}` });
             events.push({ type: "move:failure", card, reason, message });
@@ -1065,10 +1402,177 @@ export class MoveWithCardCommand implements GameCommand {
     }
 }
 
+export class EvadeEnemyWithCardCommand implements GameCommand {
+    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+
+    public execute(context: GameEngineContext): GameEvent[] {
+        const events: GameEvent[] = [];
+        const card = this.card;
+        const playerName = context.config.player.name;
+        const currentLocationId = context.state.currentLocationId;
+
+        if (!currentLocationId) {
+            return this.createFailure(events, "no-current-location", `${playerName} должен находиться в локации, чтобы использовать «${card.title}».`);
+        }
+
+        if (this.targetLocationId && this.targetLocationId !== currentLocationId) {
+            const message = `${playerName} должен сыграть «${card.title}» в своей текущей локации.`;
+            return this.createFailure(events, "wrong-location", message);
+        }
+
+        const engagedEnemies = context.state.combat.engagedEnemyIds;
+        if (engagedEnemies.length === 0) {
+            const message = `${playerName} пытается использовать «${card.title}», но враги не пристают.`;
+            return this.createFailure(events, "not-engaged", message);
+        }
+
+        if (context.state.actionsRemaining < card.cost) {
+            const message = `${playerName} не может потратить ${card.cost} действий, чтобы уйти от врага.`;
+            return this.createFailure(events, "not-enough-actions", message);
+        }
+
+        const enemyId = engagedEnemies[0];
+        const enemyName = context.state.enemies[enemyId]?.name ?? "врага";
+        const nextActions = context.state.actionsRemaining - card.cost;
+        const message = `${playerName} использует «${card.title}» и уходит от ${enemyName}.`;
+
+        events.push({ type: "actions:update", actionsRemaining: nextActions });
+        events.push({ type: "combat:enemyEvaded", enemyId, card });
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:evade:${enemyId}` });
+        events.push({ type: "card:play:success", card, message });
+
+        return events;
+    }
+
+    private createFailure(
+        events: GameEvent[],
+        reason: CardPlayFailureReason,
+        message: string,
+    ): GameEvent[] {
+        const card = this.card;
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:failure:${reason}` });
+        events.push({ type: "card:play:failure", card, reason, message });
+        return events;
+    }
+}
+
+export class EvadeAllEnemiesWithCardCommand implements GameCommand {
+    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+
+    public execute(context: GameEngineContext): GameEvent[] {
+        const events: GameEvent[] = [];
+        const card = this.card;
+        const playerName = context.config.player.name;
+        const currentLocationId = context.state.currentLocationId;
+
+        if (!currentLocationId) {
+            return this.createFailure(events, "no-current-location", `${playerName} должен находиться в локации, чтобы использовать «${card.title}».`);
+        }
+
+        if (this.targetLocationId && this.targetLocationId !== currentLocationId) {
+            const message = `${playerName} должен развернуть «${card.title}» там, где находится.`;
+            return this.createFailure(events, "wrong-location", message);
+        }
+
+        const engagedEnemies = context.state.combat.engagedEnemyIds;
+        if (engagedEnemies.length === 0) {
+            const message = `${playerName} выпустил бы дым зря — враги не рядом.`;
+            return this.createFailure(events, "not-engaged", message);
+        }
+
+        if (context.state.actionsRemaining < card.cost) {
+            const message = `${playerName} не может позволить себе потратить ${card.cost} действий на «${card.title}».`;
+            return this.createFailure(events, "not-enough-actions", message);
+        }
+
+        const nextActions = context.state.actionsRemaining - card.cost;
+        const enemyIds = [...engagedEnemies];
+        const message = `${playerName} использует «${card.title}» и скрывается от ${enemyIds.length} врагов, получая 1 урон.`;
+
+        events.push({ type: "actions:update", actionsRemaining: nextActions });
+        events.push({ type: "combat:enemiesEvaded", enemyIds, card });
+        events.push({ type: "player:damage", amount: 1, source: card.id });
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:evade_all:${enemyIds.join(",")}` });
+        events.push({ type: "card:play:success", card, message });
+
+        return events;
+    }
+
+    private createFailure(
+        events: GameEvent[],
+        reason: CardPlayFailureReason,
+        message: string,
+    ): GameEvent[] {
+        const card = this.card;
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:failure:${reason}` });
+        events.push({ type: "card:play:failure", card, reason, message });
+        return events;
+    }
+}
+
+export class HealWithCardCommand implements GameCommand {
+    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+
+    public execute(context: GameEngineContext): GameEvent[] {
+        const events: GameEvent[] = [];
+        const card = this.card;
+        const playerName = context.config.player.name;
+        const currentLocationId = context.state.currentLocationId;
+
+        if (!currentLocationId) {
+            return this.createFailure(events, "no-current-location", `${playerName} не может обработать раны в неизвестном месте.`);
+        }
+
+        if (this.targetLocationId && this.targetLocationId !== currentLocationId) {
+            const message = `${playerName} должен применить «${card.title}» к себе.`;
+            return this.createFailure(events, "wrong-location", message);
+        }
+
+        if (context.state.actionsRemaining < card.cost) {
+            const message = `${playerName} слишком устал, чтобы использовать «${card.title}».`;
+            return this.createFailure(events, "not-enough-actions", message);
+        }
+
+        const healAmount = 2;
+        const nextActions = context.state.actionsRemaining - card.cost;
+        const missingHealth = context.state.playerHealth.max - context.state.playerHealth.current;
+        const actualHeal = Math.max(0, Math.min(healAmount, missingHealth));
+        const message =
+            actualHeal > 0
+                ? `${playerName} использует «${card.title}» и восстанавливает ${actualHeal} здоровья.`
+                : `${playerName} использует «${card.title}», но здоровье и так в порядке.`;
+
+        events.push({ type: "actions:update", actionsRemaining: nextActions });
+        events.push({ type: "player:heal", amount: healAmount, source: card.id });
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:heal:${healAmount}` });
+        events.push({ type: "card:play:success", card, message });
+
+        return events;
+    }
+
+    private createFailure(
+        events: GameEvent[],
+        reason: CardPlayFailureReason,
+        message: string,
+    ): GameEvent[] {
+        const card = this.card;
+        events.push({ type: "log", channel: "user", message });
+        events.push({ type: "log", channel: "system", message: `card:${card.id}:failure:${reason}` });
+        events.push({ type: "card:play:failure", card, reason, message });
+        return events;
+    }
+}
+
 export class EndTurnCommand extends BaseGameEngineStoreCommand {
     public execute(context: GameEngineStoreContext): GameEvent[] {
         const events: GameEvent[] = [];
         const playerName = context.config.player.name;
+        const engagedBeforeEnd = [...context.state.combat.engagedEnemyIds];
 
         events.push({ type: "log", channel: "user", message: `${playerName} завершает ход.` });
         events.push({ type: "log", channel: "system", message: `turn:end:start:${playerName}` });
@@ -1138,6 +1642,22 @@ export class EndTurnCommand extends BaseGameEngineStoreCommand {
             events.push(deckEvent);
         }
 
+        if (engagedBeforeEnd.length > 0) {
+            const enemyNames = engagedBeforeEnd
+                .map((enemyId) => context.state.enemies[enemyId]?.name)
+                .filter((name): name is string => Boolean(name));
+            const enemyNote = enemyNames.length > 0 ? ` (${enemyNames.join(', ')})` : '';
+            const damageMessage = `${playerName} подвергается натиску врагов${enemyNote} и теряет 1 здоровье.`;
+
+            events.push({ type: "player:damage", amount: 1, source: "engaged-enemies" });
+            events.push({ type: "log", channel: "user", message: damageMessage });
+            events.push({
+                type: "log",
+                channel: "system",
+                message: `combat:engaged_damage:${engagedBeforeEnd.join(',')}`,
+            });
+        }
+
         events.push({ type: "actions:update", actionsRemaining: context.initialActions });
         events.push({
             type: "log",
@@ -1151,6 +1671,8 @@ export class EndTurnCommand extends BaseGameEngineStoreCommand {
         });
 
         events.push({ type: "hand:refill" });
+
+        events.push({ type: "combat:refresh" });
 
         events.push({ type: "turn:ended", actionsRemaining: context.initialActions, drawnEvents: drawn });
 

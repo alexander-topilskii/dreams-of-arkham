@@ -13,7 +13,7 @@ import mapSource from "./data/map.json";
 import eventDeckSource from "./data/event-deck.json";
 import characterSource from "./data/character.json";
 import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck";
-import { CharacterCard, type CharacterCardState } from "./widgets/character-card/character-card";
+import { CharacterCard, type CharacterCardState, type CharacterEffect } from "./widgets/character-card/character-card";
 import {
     ExpeditionMap,
     type ExpeditionMapCharacterConfig,
@@ -97,7 +97,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div id="main-split">
     <div id="left">
         <div id="left-split">
-            <div id="left-top"></div>
+            <div id="left-top">
+                <div id="hand-panel"></div>
+            </div>
             <div id="left-bottom"></div>
         </div>
     </div>
@@ -107,7 +109,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
                 <div id="map-panel"></div>
             </div>
             <div id="middle-bottom">
-                <div id="sample-hand"></div>
+                <div id="character-panel"></div>
             </div>
         </div>
     </div>
@@ -123,11 +125,29 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 // -- ui components
 const movablePanels = new MovablePanels()
 
-const characterRoot = document.getElementById('left-top')
+const characterRoot = document.getElementById('character-panel')
 const { portrait, id: characterId, ...characterStateWithoutPortrait } = characterConfig
 const initialCharacterState: CharacterCardState = {
     ...characterStateWithoutPortrait,
     portraitUrl: portrait,
+}
+
+const baseCharacterEffects: CharacterEffect[] = (initialCharacterState.effects ?? []).map((effect) => ({ ...effect }))
+
+function buildCharacterEffects(viewModel: GameViewModel): CharacterEffect[] {
+    const effects = baseCharacterEffects.map((effect) => ({ ...effect }))
+    const engaged = viewModel.engagedEnemies
+
+    if (engaged.length > 0) {
+        const names = engaged.map((enemy) => enemy.name).join(', ')
+        effects.push({
+            id: 'engaged-enemies',
+            name: `Сражается с ${engaged.length} врагами`,
+            description: names ? `Противники: ${names}.` : undefined,
+        })
+    }
+
+    return effects
 }
 
 if (characterRoot) {
@@ -136,7 +156,7 @@ if (characterRoot) {
 
 const characterCard = new CharacterCard(characterRoot, initialCharacterState)
 
-const handRoot = document.getElementById('sample-hand')
+const handRoot = document.getElementById('hand-panel')
 let debugCharacterCursor = 0
 
 let cardHandController: CardHandController
@@ -169,6 +189,7 @@ const gameEngineStore = new GameEngineStore(
         initialActions: initialCharacterState.actionPoints,
         playerCount: 1,
         initialDeckState,
+        playerHealth: initialCharacterState.health,
     },
     {
         initialDeck: cardsConfig.initialDeck,
@@ -195,7 +216,11 @@ let latestViewModel: GameViewModel = gameEngineStore.getViewModel();
 
 gameEngineStore.subscribe((_event, viewModel) => {
     latestViewModel = viewModel;
-    characterCard.setState({ actionPoints: viewModel.actionsRemaining });
+    characterCard.setState({
+        actionPoints: viewModel.actionsRemaining,
+        health: viewModel.playerHealth,
+        effects: buildCharacterEffects(viewModel),
+    });
 });
 
 const gameEngineDebug = new GameEngineDebugFacade(gameEngineStore);

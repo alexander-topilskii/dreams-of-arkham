@@ -9,12 +9,36 @@
       "effect": "move"
     },
     {
+      "id": "trick",
+      "title": "Уловка",
+      "description": "Выкрутитесь и отвлеките одного из врагов, чтобы сбежать.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "evade"
+    },
+    {
+      "id": "bandages",
+      "title": "Бинты",
+      "description": "Обработайте раны и восстановите силы.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "heal"
+    },
+    {
       "id": "walk",
       "title": "Прогуляться",
       "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
       "image": "/images/cards/enigmatic-vision.svg",
       "cost": 1,
       "effect": "move"
+    },
+    {
+      "id": "smoke-bomb",
+      "title": "Дымовая шашка",
+      "description": "Заполните улицу дымом, чтобы скрыться от всех врагов.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 2,
+      "effect": "smoke"
     },
     {
       "id": "walk",

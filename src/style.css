@@ -17,8 +17,8 @@
     --bg: #282830; /* основной цвет фона страницы */
     --fg: #fff; /* основной цвет текста */
     --gutter: #2b2f36; /* цвет разделителей Split.js */
-    --pad: 12px; /* стандартные внутренние отступы */
-    --gutter-size: 8px; /* ширина или высота разделителя */
+    --pad: 6px; /* стандартные внутренние отступы */
+    --gutter-size: 4px; /* ширина или высота разделителя */
 }
 
 body {
@@ -107,6 +107,35 @@ canvas {
     flex-direction: column;
 }
 
+#left-top {
+    align-items: stretch;
+}
+
+#hand-panel {
+    flex: 1;
+    display: flex;
+}
+
+#hand-panel > * {
+    flex: 1;
+}
+
+#middle-bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+#character-panel {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+#character-panel > * {
+    flex: 0 0 auto;
+}
+
 #map-panel {
     flex: 1;
     min-height: 0;
@@ -167,6 +196,41 @@ canvas {
 
 #box:active {
     cursor: grabbing; /* курсор при нажатии — “схватил” */
+}
+
+@media (max-width: 768px) {
+    body {
+        overflow-y: auto; /* на мобильных разрешаем вертикальную прокрутку */
+    }
+
+    #main-split {
+        flex-direction: column; /* панели идут друг за другом в столбец */
+        height: auto;
+        min-height: 100vh;
+    }
+
+    #left,
+    #middle,
+    #right,
+    #left-split,
+    #middle-split,
+    #right-split {
+        width: 100%;
+        height: auto;
+    }
+
+    #left-top,
+    #left-bottom,
+    #middle-top,
+    #middle-bottom,
+    #right-top,
+    #right-bottom {
+        width: 100%;
+    }
+
+    .gutter.gutter-horizontal {
+        display: none; /* скрываем горизонтальные разделители для мобильной версии */
+    }
 }
 
 

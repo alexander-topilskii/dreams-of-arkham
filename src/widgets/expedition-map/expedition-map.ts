@@ -1349,10 +1349,6 @@ export class ExpeditionMap {
                 return;
             }
 
-            if (!isDragging && !moved) {
-                this.toggleTerritory(territory.id);
-            }
-
             cleanup();
 
             document.removeEventListener('pointermove', onPointerMove);
@@ -1381,16 +1377,6 @@ export class ExpeditionMap {
             document.addEventListener('pointerup', onPointerUp);
             document.addEventListener('pointercancel', onPointerUp);
         });
-    }
-
-    private toggleTerritory(id: string) {
-        const view = this.territories.get(id);
-        if (!view) {
-            return;
-        }
-
-        view.isFlipped = !view.isFlipped;
-        view.element.dataset.state = view.isFlipped ? 'front' : 'back';
     }
 
     private positionTerritory(view: TerritoryView) {
