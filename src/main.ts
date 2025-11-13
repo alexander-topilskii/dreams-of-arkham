@@ -13,7 +13,7 @@ import mapSource from "./data/map.json";
 import eventDeckSource from "./data/event-deck.json";
 import characterSource from "./data/character.json";
 import { EventDeck, type EventDeckConfig } from "./widgets/event-deck/event-deck";
-import { CharacterCard, type CharacterCardState } from "./widgets/character-card/character-card";
+import { CharacterCard, type CharacterCardState, type CharacterEffect } from "./widgets/character-card/character-card";
 import {
     ExpeditionMap,
     type ExpeditionMapCharacterConfig,
@@ -132,6 +132,24 @@ const initialCharacterState: CharacterCardState = {
     portraitUrl: portrait,
 }
 
+const baseCharacterEffects: CharacterEffect[] = (initialCharacterState.effects ?? []).map((effect) => ({ ...effect }))
+
+function buildCharacterEffects(viewModel: GameViewModel): CharacterEffect[] {
+    const effects = baseCharacterEffects.map((effect) => ({ ...effect }))
+    const engaged = viewModel.engagedEnemies
+
+    if (engaged.length > 0) {
+        const names = engaged.map((enemy) => enemy.name).join(', ')
+        effects.push({
+            id: 'engaged-enemies',
+            name: `Сражается с ${engaged.length} врагами`,
+            description: names ? `Противники: ${names}.` : undefined,
+        })
+    }
+
+    return effects
+}
+
 if (characterRoot) {
     characterRoot.dataset.characterId = characterId
 }
@@ -171,6 +189,7 @@ const gameEngineStore = new GameEngineStore(
         initialActions: initialCharacterState.actionPoints,
         playerCount: 1,
         initialDeckState,
+        playerHealth: initialCharacterState.health,
     },
     {
         initialDeck: cardsConfig.initialDeck,
@@ -197,7 +216,11 @@ let latestViewModel: GameViewModel = gameEngineStore.getViewModel();
 
 gameEngineStore.subscribe((_event, viewModel) => {
     latestViewModel = viewModel;
-    characterCard.setState({ actionPoints: viewModel.actionsRemaining });
+    characterCard.setState({
+        actionPoints: viewModel.actionsRemaining,
+        health: viewModel.playerHealth,
+        effects: buildCharacterEffects(viewModel),
+    });
 });
 
 const gameEngineDebug = new GameEngineDebugFacade(gameEngineStore);

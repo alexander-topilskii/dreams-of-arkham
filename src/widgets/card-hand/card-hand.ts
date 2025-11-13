@@ -1,4 +1,4 @@
-export type CardEffect = 'move' | 'attack' | 'hide' | 'search'
+export type CardEffect = 'move' | 'attack' | 'hide' | 'search' | 'evade' | 'smoke' | 'heal'
 
 export type CardHandCard = {
     id: string
@@ -507,10 +507,6 @@ export class CardHand {
             return
         }
 
-        if (card.effect !== 'move') {
-            return
-        }
-
         event.preventDefault()
         event.stopPropagation()
 
@@ -896,6 +892,12 @@ export class CardHand {
                 return 'Сокройтесь от взгляда врагов.'
             case 'search':
                 return 'Исследуйте местность и найдите улики.'
+            case 'evade':
+                return 'Сбросьте внимание одного врага и выйдите из боя.'
+            case 'smoke':
+                return 'Ослепите всех врагов дымом и выйдите из боя, получив 1 урон.'
+            case 'heal':
+                return 'Восстановите 2 единицы здоровья, перевязав раны.'
         }
     }
 
@@ -909,6 +911,12 @@ export class CardHand {
                 return '☽'
             case 'search':
                 return '✸'
+            case 'evade':
+                return '↺'
+            case 'smoke':
+                return '☁'
+            case 'heal':
+                return '✚'
         }
     }
 
