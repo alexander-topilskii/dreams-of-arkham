@@ -123,7 +123,20 @@ export class CharacterCard {
 
         effectsSection.append(effectsHeader, this.effectsList, this.emptyEffects)
 
-        this.container.append(header, stats, effectsSection)
+        const layout = document.createElement('div')
+        layout.className = 'character-card__layout'
+
+        const mainSection = document.createElement('div')
+        mainSection.className = 'character-card__main'
+        mainSection.append(header, stats)
+
+        const sidebar = document.createElement('div')
+        sidebar.className = 'character-card__sidebar'
+        sidebar.append(effectsSection)
+
+        layout.append(mainSection, sidebar)
+
+        this.container.append(layout)
         this.root.appendChild(this.container)
 
         this.applyState(this.state)
@@ -265,7 +278,27 @@ export class CharacterCard {
                 border: 1px solid rgba(180, 200, 255, 0.08);
                 color: #f4f5ff;
                 font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-                max-width: 420px;
+                max-width: 760px;
+            }
+
+            .character-card__layout {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(220px, 0.75fr);
+                gap: 20px;
+                align-items: stretch;
+            }
+
+            .character-card__main {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .character-card__sidebar {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                min-width: 220px;
             }
 
             .character-card__header {
@@ -391,6 +424,7 @@ export class CharacterCard {
                 flex-direction: column;
                 gap: 10px;
                 text-align: left;
+                flex: 1;
             }
 
             .character-card__effects-header {
@@ -432,6 +466,16 @@ export class CharacterCard {
                 font-size: 13px;
                 opacity: 0.6;
                 font-style: italic;
+            }
+
+            @media (max-width: 900px) {
+                .character-card__layout {
+                    grid-template-columns: 1fr;
+                }
+
+                .character-card__sidebar {
+                    min-width: 0;
+                }
             }
 
             @media (max-width: 480px) {
