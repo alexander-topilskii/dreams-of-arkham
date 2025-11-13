@@ -23,6 +23,54 @@
       "image": "/images/cards/enigmatic-vision.svg",
       "cost": 1,
       "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
+    },
+    {
+      "id": "walk",
+      "title": "Прогуляться",
+      "description": "Позволяет неспешно пройтись по тропе и осмотреть окрестности.",
+      "image": "/images/cards/enigmatic-vision.svg",
+      "cost": 1,
+      "effect": "move"
     }
   ]
 }
