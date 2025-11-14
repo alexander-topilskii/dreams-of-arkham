@@ -144,7 +144,7 @@ export class CardHandView implements CardHandDndSurface {
         this.strip = document.createElement("div");
         this.strip.className = "card-hand-widget__strip";
         this.strip.style.gap = `${options.gap}px`;
-        this.strip.style.padding = `${options.gap}px 0`;
+        this.strip.style.padding = "0";
 
         this.viewport.appendChild(this.strip);
         this.panel.appendChild(this.viewport);
@@ -421,7 +421,6 @@ export class CardHandView implements CardHandDndSurface {
         button.dataset.cardType = card.id;
         button.style.width = "100%";
         button.style.maxWidth = `${this.options.cardWidth}px`;
-        button.style.margin = "0 auto";
         button.style.minHeight = `${this.options.cardHeight}px`;
         button.addEventListener("pointerdown", (event) => this.handleCardPointerDown(card.instanceId, event));
 
@@ -988,6 +987,8 @@ export class CardHandView implements CardHandDndSurface {
                 position: relative;
                 width: 100%;
                 min-height: 100%;
+                gap: 4px;
+                padding: 0;
                 transition: transform 0.3s ease;
             }
 
@@ -1027,6 +1028,7 @@ export class CardHandView implements CardHandDndSurface {
                 background: transparent;
                 border: none;
                 padding: 0;
+                margin: 0;
                 cursor: grab;
                 font: inherit;
                 color: inherit;
