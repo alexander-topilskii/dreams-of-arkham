@@ -48,6 +48,8 @@ function initializeApplication(): void {
 
     const layout = setupAppLayout(root)
     const gameData = loadGameData()
+    const doc = root.ownerDocument ?? document
+    const toggleButtonParent = doc.body ?? root
 
     const gameEngine = setupGameEngine({
         containers: {
@@ -68,6 +70,8 @@ function initializeApplication(): void {
     })
 
     setupDebugPanel({
+        document: doc,
+        toggleButtonParent,
         store: gameEngine.store,
         debugFacade: gameEngine.debugFacade,
         cardHand: gameEngine.cardHand,
