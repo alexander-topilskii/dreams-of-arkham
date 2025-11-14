@@ -1,17 +1,17 @@
-import { MovablePanels } from "./widgets/movable-panels/movable-panels";
+import { MovablePanels } from './widgets/movable-panels/movable-panels'
 
 export type AppLayoutElements = {
-    handPanel: HTMLElement | null;
-    characterPanel: HTMLElement | null;
-    mapPanel: HTMLElement | null;
-    leftBottomPanel: HTMLElement | null;
-    rightTopPanel: HTMLElement | null;
-    rightBottomPanel: HTMLElement | null;
-};
+    handPanel: HTMLElement
+    characterPanel: HTMLElement
+    mapPanel: HTMLElement
+    leftBottomPanel: HTMLElement
+    rightTopPanel: HTMLElement
+    rightBottomPanel: HTMLElement
+}
 
 export type SetupAppLayoutResult = AppLayoutElements & {
-    movablePanels: MovablePanels;
-};
+    movablePanels: MovablePanels
+}
 
 export function setupAppLayout(root: HTMLElement): SetupAppLayoutResult {
     root.innerHTML = `
@@ -41,17 +41,26 @@ export function setupAppLayout(root: HTMLElement): SetupAppLayoutResult {
         </div>
     </div>
   </div>
-`;
+`
 
-    const movablePanels = new MovablePanels();
+    const query = <T extends HTMLElement>(selector: string): T => {
+        const element = root.querySelector<T>(selector)
+        if (!element) {
+            throw new Error(`Не удалось найти элемент макета по селектору ${selector}`)
+        }
+
+        return element
+    }
+
+    const movablePanels = new MovablePanels()
 
     return {
         movablePanels,
-        handPanel: document.getElementById("hand-panel"),
-        characterPanel: document.getElementById("character-panel"),
-        mapPanel: document.getElementById("map-panel"),
-        leftBottomPanel: document.getElementById("left-bottom"),
-        rightTopPanel: document.getElementById("right-top"),
-        rightBottomPanel: document.getElementById("right-bottom"),
-    };
+        handPanel: query('#hand-panel'),
+        characterPanel: query('#character-panel'),
+        mapPanel: query('#map-panel'),
+        leftBottomPanel: query('#left-bottom'),
+        rightTopPanel: query('#right-top'),
+        rightBottomPanel: query('#right-bottom'),
+    }
 }
