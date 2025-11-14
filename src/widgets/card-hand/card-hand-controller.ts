@@ -42,11 +42,7 @@ export class CardHandController {
     }
 
     onDrop(card: CardHandCard, territoryId: string): CardHandDropResult {
-        const descriptor: HandCardDescriptor = {
-            id: card.id,
-            title: card.title,
-            cost: card.cost,
-        };
+        const descriptor = this.createDescriptor(card);
         this.lastDropResult = undefined;
 
         switch (card.effect) {
@@ -70,12 +66,50 @@ export class CardHandController {
                     status: "error",
                     message: "Эффект этой карты пока не поддерживается.",
                 };
-                return this.lastDropResult;
+                return this.finalizeDropResult("Не удалось применить эффект карты.");
         }
-        const result: CardHandDropResult =
-            this.lastDropResult ?? { status: "error", message: "Не удалось применить эффект карты." };
+        return this.finalizeDropResult("Не удалось применить эффект карты.");
+    }
+
+    onDropOnPlayer(card: CardHandCard): CardHandDropResult {
+        const descriptor = this.createDescriptor(card);
         this.lastDropResult = undefined;
-        return result;
+
+        switch (card.effect) {
+            case "heal":
+                this.store.dispatch(new HealWithCardCommand(descriptor));
+                break;
+            default:
+                this.lastDropResult = {
+                    status: "error",
+                    message: `«${card.title}» нельзя применить к персонажу.`,
+                };
+                return this.finalizeDropResult("Эту карту нельзя применить к персонажу.");
+        }
+
+        return this.finalizeDropResult("Не удалось применить карту к персонажу.");
+    }
+
+    onDropOnEnemy(card: CardHandCard, enemyId: string): CardHandDropResult {
+        const descriptor = this.createDescriptor(card);
+        this.lastDropResult = undefined;
+
+        switch (card.effect) {
+            case "attack":
+                this.store.dispatch(new AttackEnemyWithCardCommand(descriptor, undefined, enemyId));
+                break;
+            case "evade":
+                this.store.dispatch(new EvadeEnemyWithCardCommand(descriptor, undefined, enemyId));
+                break;
+            default:
+                this.lastDropResult = {
+                    status: "error",
+                    message: `«${card.title}» не помогает в этой схватке.`,
+                };
+                return this.finalizeDropResult("Не удалось применить карту против врага.");
+        }
+
+        return this.finalizeDropResult("Не удалось применить карту против врага.");
     }
 
     onDropFailure(_card: CardHandCard, _territoryId: string, _message?: string): void {
@@ -148,5 +182,19 @@ export class CardHandController {
             ...rest,
             artUrl: image,
         };
+    }
+
+    private createDescriptor(card: CardHandCard): HandCardDescriptor {
+        return {
+            id: card.id,
+            title: card.title,
+            cost: card.cost,
+        };
+    }
+
+    private finalizeDropResult(defaultMessage: string): CardHandDropResult {
+        const result = this.lastDropResult ?? { status: "error", message: defaultMessage };
+        this.lastDropResult = undefined;
+        return result;
     }
 }

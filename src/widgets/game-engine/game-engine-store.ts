@@ -1584,7 +1584,11 @@ export class MoveWithCardCommand implements GameCommand {
 }
 
 export class AttackEnemyWithCardCommand implements GameCommand {
-    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+    constructor(
+        private readonly card: HandCardDescriptor,
+        private readonly targetLocationId?: string,
+        private readonly targetEnemyId?: string,
+    ) {}
 
     public execute(context: GameEngineContext): GameEvent[] {
         const events: GameEvent[] = [];
@@ -1612,7 +1616,17 @@ export class AttackEnemyWithCardCommand implements GameCommand {
             return this.createFailure(events, "not-enough-actions", message);
         }
 
-        const enemyId = engagedEnemies[0];
+        const preferredEnemyId = this.targetEnemyId?.trim();
+        let enemyId = engagedEnemies[0];
+
+        if (preferredEnemyId) {
+            if (!engagedEnemies.includes(preferredEnemyId)) {
+                const message = `${playerName} не может атаковать эту цель — она не вступила в бой.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+            enemyId = preferredEnemyId;
+        }
+
         const enemyInfo = context.state.enemies[enemyId];
         if (!enemyInfo) {
             const message = `${playerName} теряет цель — враг исчез.`;
@@ -1722,7 +1736,11 @@ export class AttackEnemyWithCardCommand implements GameCommand {
 }
 
 export class EvadeEnemyWithCardCommand implements GameCommand {
-    constructor(private readonly card: HandCardDescriptor, private readonly targetLocationId?: string) {}
+    constructor(
+        private readonly card: HandCardDescriptor,
+        private readonly targetLocationId?: string,
+        private readonly targetEnemyId?: string,
+    ) {}
 
     public execute(context: GameEngineContext): GameEvent[] {
         const events: GameEvent[] = [];
@@ -1750,7 +1768,17 @@ export class EvadeEnemyWithCardCommand implements GameCommand {
             return this.createFailure(events, "not-enough-actions", message);
         }
 
-        const enemyId = engagedEnemies[0];
+        const preferredEnemyId = this.targetEnemyId?.trim();
+        let enemyId = engagedEnemies[0];
+
+        if (preferredEnemyId) {
+            if (!engagedEnemies.includes(preferredEnemyId)) {
+                const message = `${playerName} не может скрыться от этой цели — она не ведёт бой.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+            enemyId = preferredEnemyId;
+        }
+
         const enemyName = context.state.enemies[enemyId]?.name ?? "врага";
         const nextActions = context.state.actionsRemaining - card.cost;
         const message = `${playerName} использует «${card.title}» и уходит от ${enemyName}.`;

@@ -38,6 +38,10 @@ export type CardHandOptions = {
     onMoveCardDrop?: (card: CardHandCard, territoryId: string) => CardHandDropResult | Promise<CardHandDropResult>
     onMoveCardDropFailure?: (card: CardHandCard, territoryId: string, message?: string) => void
     onMoveCardTargetMissing?: (card: CardHandCard) => void
+    onPlayerCardDrop?: (card: CardHandCard) => CardHandDropResult | Promise<CardHandDropResult>
+    onPlayerCardDropFailure?: (card: CardHandCard, message?: string) => void
+    onEnemyCardDrop?: (card: CardHandCard, enemyId: string) => CardHandDropResult | Promise<CardHandDropResult>
+    onEnemyCardDropFailure?: (card: CardHandCard, enemyId: string, message?: string) => void
     onCardConsumed?: (card: CardHandCard) => void
     onEndTurn?: () => void | Promise<void>
 }
@@ -69,6 +73,11 @@ type ZoneChipElements = {
     count: HTMLSpanElement
 }
 
+type DropTarget =
+    | { type: 'territory'; territoryId: string }
+    | { type: 'player' }
+    | { type: 'enemy'; enemyId: string }
+
 export class CardHand {
     private static stylesInjected = false
 
@@ -84,6 +93,10 @@ export class CardHand {
     private readonly onMoveCardDrop?: CardHandOptions['onMoveCardDrop']
     private readonly onMoveCardDropFailure?: CardHandOptions['onMoveCardDropFailure']
     private readonly onMoveCardTargetMissing?: CardHandOptions['onMoveCardTargetMissing']
+    private readonly onPlayerCardDrop?: CardHandOptions['onPlayerCardDrop']
+    private readonly onPlayerCardDropFailure?: CardHandOptions['onPlayerCardDropFailure']
+    private readonly onEnemyCardDrop?: CardHandOptions['onEnemyCardDrop']
+    private readonly onEnemyCardDropFailure?: CardHandOptions['onEnemyCardDropFailure']
     private readonly onCardConsumed?: CardHandOptions['onCardConsumed']
     private readonly onEndTurn?: CardHandOptions['onEndTurn']
 
@@ -127,6 +140,10 @@ export class CardHand {
         this.onMoveCardDrop = options.onMoveCardDrop
         this.onMoveCardDropFailure = options.onMoveCardDropFailure
         this.onMoveCardTargetMissing = options.onMoveCardTargetMissing
+        this.onPlayerCardDrop = options.onPlayerCardDrop
+        this.onPlayerCardDropFailure = options.onPlayerCardDropFailure
+        this.onEnemyCardDrop = options.onEnemyCardDrop
+        this.onEnemyCardDropFailure = options.onEnemyCardDropFailure
         this.onCardConsumed = options.onCardConsumed
         this.onEndTurn = options.onEndTurn
 
@@ -599,21 +616,29 @@ export class CardHand {
             return
         }
 
-        const territoryElement = this.getTerritoryElementAt(event.clientX, event.clientY)
-        if (!territoryElement) {
+        const dropTarget = this.getDropTargetAt(event.clientX, event.clientY)
+        if (!dropTarget) {
             this.applyCardError(wrapper)
             this.onMoveCardTargetMissing?.(card)
             return
         }
 
-        const territoryId = territoryElement.dataset.territoryId?.trim()
-        if (!territoryId) {
-            this.applyCardError(wrapper)
-            this.onMoveCardDropFailure?.(card, '', 'Не удалось определить локацию')
+        if (dropTarget.type === 'territory') {
+            await this.resolveMoveDrop(card, dropTarget.territoryId, wrapper)
             return
         }
 
-        await this.resolveMoveDrop(card, territoryId, wrapper)
+        if (dropTarget.type === 'player') {
+            await this.resolvePlayerDrop(card, wrapper)
+            return
+        }
+
+        if (dropTarget.type === 'enemy') {
+            await this.resolveEnemyDrop(card, dropTarget.enemyId, wrapper)
+            return
+        }
+
+        this.applyCardError(wrapper)
     }
 
     private cancelActiveDrag() {
@@ -658,11 +683,6 @@ export class CardHand {
         drag.head.style.transform = `translate(-50%, -50%) rotate(${angle}rad)`
     }
 
-    private getTerritoryElementAt(clientX: number, clientY: number): HTMLDivElement | null {
-        const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
-        return element?.closest('.map-territory') as HTMLDivElement | null
-    }
-
     private async resolveMoveDrop(card: InternalCard, territoryId: string, wrapper: HTMLDivElement) {
         if (!this.onMoveCardDrop) {
             console.warn('CardHand: onMoveCardDrop handler is not provided.')
@@ -687,6 +707,94 @@ export class CardHand {
             this.onMoveCardDropFailure?.(card, territoryId, message)
             this.applyCardError(wrapper)
         }
+    }
+
+    private async resolvePlayerDrop(card: InternalCard, wrapper: HTMLDivElement) {
+        if (!this.onPlayerCardDrop) {
+            console.warn('CardHand: onPlayerCardDrop handler is not provided.')
+            this.applyCardError(wrapper)
+            return
+        }
+
+        try {
+            const result = await this.onPlayerCardDrop(card)
+            if (result && result.status === 'success') {
+                this.onCardConsumed?.(card)
+                this.removeCard(card.instanceId)
+                return
+            }
+
+            const message = result?.message
+            this.onPlayerCardDropFailure?.(card, message)
+            this.applyCardError(wrapper)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : undefined
+            console.error('CardHand: failed to resolve player drop', error)
+            this.onPlayerCardDropFailure?.(card, message)
+            this.applyCardError(wrapper)
+        }
+    }
+
+    private async resolveEnemyDrop(card: InternalCard, enemyId: string, wrapper: HTMLDivElement) {
+        if (!this.onEnemyCardDrop) {
+            console.warn('CardHand: onEnemyCardDrop handler is not provided.')
+            this.applyCardError(wrapper)
+            return
+        }
+
+        if (!enemyId) {
+            this.applyCardError(wrapper)
+            this.onEnemyCardDropFailure?.(card, enemyId, 'Не удалось определить врага')
+            return
+        }
+
+        try {
+            const result = await this.onEnemyCardDrop(card, enemyId)
+            if (result && result.status === 'success') {
+                this.onCardConsumed?.(card)
+                this.removeCard(card.instanceId)
+                return
+            }
+
+            const message = result?.message
+            this.onEnemyCardDropFailure?.(card, enemyId, message)
+            this.applyCardError(wrapper)
+        } catch (error) {
+            const message = error instanceof Error ? error.message : undefined
+            console.error('CardHand: failed to resolve enemy drop', error)
+            this.onEnemyCardDropFailure?.(card, enemyId, message)
+            this.applyCardError(wrapper)
+        }
+    }
+
+    private getDropTargetAt(clientX: number, clientY: number): DropTarget | null {
+        const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null
+        if (!element) {
+            return null
+        }
+
+        const enemyEffect = element.closest('.character-card__effect[data-enemy-id]') as HTMLElement | null
+        if (enemyEffect) {
+            const enemyId = enemyEffect.dataset.enemyId?.trim()
+            if (enemyId) {
+                return { type: 'enemy', enemyId }
+            }
+        }
+
+        const characterCard = element.closest('.character-card') as HTMLElement | null
+        if (characterCard) {
+            return { type: 'player' }
+        }
+
+        const territory = element.closest('.map-territory') as HTMLElement | null
+        if (territory) {
+            const territoryId = territory.dataset.territoryId?.trim()
+            if (territoryId) {
+                return { type: 'territory', territoryId }
+            }
+        }
+
+        return null
     }
 
     private applyCardError(wrapper: HTMLDivElement) {

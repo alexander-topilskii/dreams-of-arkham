@@ -7,6 +7,7 @@ export type CharacterEffect = {
     id: string
     name: string
     description?: string
+    enemyId?: string
 }
 
 export type CharacterCardState = {
@@ -195,6 +196,12 @@ export class CharacterCard {
             const item = document.createElement('li')
             item.className = 'character-card__effect'
             item.dataset.effectId = effect.id
+
+            if (effect.enemyId) {
+                item.dataset.enemyId = effect.enemyId
+            } else {
+                delete item.dataset.enemyId
+            }
 
             const name = document.createElement('div')
             name.className = 'character-card__effect-name'
