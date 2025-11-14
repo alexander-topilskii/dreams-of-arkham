@@ -140,11 +140,21 @@ function buildCharacterEffects(viewModel: GameViewModel): CharacterEffect[] {
 
     if (engaged.length > 0) {
         const names = engaged.map((enemy) => enemy.name).join(', ')
+
         effects.push({
-            id: 'engaged-enemies',
+            id: 'engaged-summary',
             name: `Сражается с ${engaged.length} врагами`,
             description: names ? `Противники: ${names}.` : undefined,
         })
+
+        for (const enemy of engaged) {
+            effects.push({
+                id: `enemy-${enemy.id}`,
+                name: enemy.name,
+                description: 'Перетащите карту атаки или уворота, чтобы взаимодействовать.',
+                enemyId: enemy.id,
+            })
+        }
     }
 
     return effects
@@ -167,6 +177,8 @@ const cardHand = new CardHand(handRoot, {
     onCardConsumed: (card) => cardHandController.handleCardConsumed(card),
     onMoveCardDropFailure: (card, territoryId, message) =>
         cardHandController.onDropFailure(card, territoryId, message),
+    onPlayerCardDrop: (card) => cardHandController.onDropOnPlayer(card),
+    onEnemyCardDrop: (card, enemyId) => cardHandController.onDropOnEnemy(card, enemyId),
     onEndTurn: () => cardHandController?.handleEndTurn(),
 })
 
