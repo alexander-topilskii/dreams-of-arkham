@@ -220,7 +220,9 @@ export class CharacterCard {
         this.effectsList.style.display = ''
         this.emptyEffects.style.display = 'none'
 
-        for (const effect of effects) {
+        const sortedEffects = this.sortEffectsByPriority(effects)
+
+        for (const effect of sortedEffects) {
             const item = document.createElement('li')
             item.className = 'character-card__effect'
             item.dataset.effectId = effect.id
@@ -229,6 +231,11 @@ export class CharacterCard {
                 item.dataset.enemyId = effect.enemyId
             } else {
                 delete item.dataset.enemyId
+            }
+
+            const hostile = this.isHostileEffect(effect)
+            if (hostile) {
+                item.classList.add('character-card__effect--hostile')
             }
 
             const name = document.createElement('div')
@@ -243,6 +250,44 @@ export class CharacterCard {
             item.append(name, description)
             this.effectsList.appendChild(item)
         }
+    }
+
+    private sortEffectsByPriority(effects: CharacterEffect[]): CharacterEffect[] {
+        const hostile: CharacterEffect[] = []
+        const others: CharacterEffect[] = []
+
+        for (const effect of effects) {
+            if (this.isHostileEffect(effect)) {
+                hostile.push(effect)
+            } else {
+                others.push(effect)
+            }
+        }
+
+        return [...hostile, ...others]
+    }
+
+    private isHostileEffect(effect: CharacterEffect): boolean {
+        if (effect.enemyId && effect.enemyId.trim().length > 0) {
+            return true
+        }
+
+        const id = effect.id.trim().toLowerCase()
+        if (id.includes('enemy') || id.includes('engaged')) {
+            return true
+        }
+
+        const name = effect.name.trim().toLowerCase()
+        if (name.includes('враг') || name.includes('сражает') || name.includes('enemy')) {
+            return true
+        }
+
+        const description = effect.description?.toLowerCase() ?? ''
+        if (description.includes('враг') || description.includes('enemy')) {
+            return true
+        }
+
+        return false
     }
 
     private updateVitals(bar: HTMLDivElement, valueLabel: HTMLSpanElement, vitals: CharacterVitals): void {
@@ -475,12 +520,16 @@ export class CharacterCard {
                 text-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
                 letter-spacing: 0.04em;
                 will-change: transform, opacity;
+                --animation-name: character-card-health-float;
             }
 
             .character-card__health-float-label--damage {
                 color: #ff7f7f;
-                --float-y: -26px;
+                --float-y: 36px;
                 --duration: 800ms;
+                --drop-start: -24px;
+                --drop-mid: -6px;
+                --animation-name: character-card-health-drop;
             }
 
             .character-card__health-float-label--heal {
@@ -490,7 +539,11 @@ export class CharacterCard {
             }
 
             .character-card__health-float-label.is-active {
-                animation: character-card-health-float var(--duration) ease-out forwards;
+                animation-name: var(--animation-name);
+                animation-duration: var(--duration);
+                animation-timing-function: ease-out;
+                animation-fill-mode: forwards;
+                animation-iteration-count: 1;
             }
 
             .character-card__health-particle {
@@ -528,6 +581,21 @@ export class CharacterCard {
                 100% {
                     opacity: 0;
                     transform: translate(-50%, calc(-50% + var(--float-y))) scale(1);
+                }
+            }
+
+            @keyframes character-card-health-drop {
+                0% {
+                    opacity: 0;
+                    transform: translate(-50%, calc(-50% + var(--drop-start, -24px))) scale(0.92);
+                }
+                18% {
+                    opacity: 1;
+                    transform: translate(-50%, calc(-50% + var(--drop-mid, -8px))) scale(1);
+                }
+                100% {
+                    opacity: 0;
+                    transform: translate(-50%, calc(-50% + var(--float-y))) scale(0.96);
                 }
             }
 
@@ -640,6 +708,18 @@ export class CharacterCard {
                 border: 1px solid rgba(255, 255, 255, 0.06);
             }
 
+            .character-card__effect--hostile {
+                background: linear-gradient(135deg, rgba(94, 20, 30, 0.58), rgba(48, 12, 20, 0.46));
+                border-color: rgba(255, 104, 104, 0.35);
+                box-shadow: 0 6px 18px rgba(255, 68, 68, 0.22);
+                animation: character-card-effect-alert 520ms ease-out;
+                will-change: transform;
+            }
+
+            .character-card__effect--hostile .character-card__effect-name {
+                color: #ffd5d5;
+            }
+
             .character-card__effect-name {
                 font-size: 14px;
                 font-weight: 600;
@@ -656,6 +736,27 @@ export class CharacterCard {
                 font-size: 13px;
                 opacity: 0.6;
                 font-style: italic;
+            }
+
+            @keyframes character-card-effect-alert {
+                0% {
+                    transform: translate3d(0, 0, 0);
+                }
+                20% {
+                    transform: translate3d(-2px, 0, 0);
+                }
+                40% {
+                    transform: translate3d(2px, 0, 0);
+                }
+                60% {
+                    transform: translate3d(-1px, 0, 0);
+                }
+                80% {
+                    transform: translate3d(1px, 0, 0);
+                }
+                100% {
+                    transform: translate3d(0, 0, 0);
+                }
             }
 
             @media (max-width: 900px) {
