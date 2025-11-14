@@ -81,10 +81,10 @@ export class CardHand {
 
     constructor(root?: HTMLElement | null, options: CardHandOptions = {}) {
         const translucent = options.translucent ?? true;
-        const minViewportHeight = options.height ?? 300;
-        const cardWidth = options.cardWidth ?? 336;
-        const cardHeight = options.cardHeight ?? Math.floor(cardWidth * 1.1);
-        const gap = options.gap ?? 4;
+        const minViewportHeight = options.height ?? 260;
+        const cardWidth = options.cardWidth ?? 280;
+        const cardHeight = options.cardHeight ?? Math.floor(cardWidth * 1.05);
+        const gap = options.gap ?? 3;
         const enableTouchInertia = options.enableTouchInertia ?? true;
 
         this.onMoveCardDrop = options.onMoveCardDrop;

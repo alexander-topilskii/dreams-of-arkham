@@ -810,7 +810,7 @@ export class CardHandView implements CardHandDndSurface {
                 display: flex;
                 align-items: flex-end;
                 justify-content: center;
-                padding: 16px;
+                padding: 6px 10px 10px;
                 pointer-events: none;
                 z-index: 2000;
             }
@@ -823,13 +823,13 @@ export class CardHandView implements CardHandDndSurface {
                 position: relative;
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
-                padding: 12px 14px 16px;
+                gap: 4px;
+                padding: 6px 10px 10px;
                 background: rgba(11, 15, 25, 0.9);
                 border: 1px solid rgba(148, 163, 184, 0.3);
-                border-radius: 18px;
+                border-radius: 14px;
                 color: #f8fafc;
-                box-shadow: 0 28px 48px rgba(15, 23, 42, 0.55);
+                box-shadow: 0 24px 40px rgba(15, 23, 42, 0.5);
             }
 
             .card-hand-widget__panel--translucent {
@@ -843,11 +843,12 @@ export class CardHandView implements CardHandDndSurface {
             .card-hand-widget__header {
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 4px;
+                min-height: 0;
             }
 
             .card-hand-widget__instructions {
-                font-size: 13px;
+                font-size: 12px;
                 color: rgba(226, 232, 240, 0.72);
                 flex: 1;
                 min-width: 0;
@@ -859,19 +860,19 @@ export class CardHandView implements CardHandDndSurface {
             .card-hand-widget__zones {
                 display: none;
                 align-items: center;
-                gap: 6px;
+                gap: 5px;
                 flex-shrink: 0;
             }
 
             .card-hand-widget__chip {
                 display: inline-flex;
                 align-items: center;
-                gap: 4px;
-                padding: 3px 8px;
+                gap: 3px;
+                padding: 2px 7px;
                 border-radius: 999px;
                 border: 1px solid rgba(148, 163, 184, 0.35);
                 background: rgba(30, 41, 59, 0.6);
-                font-size: 12px;
+                font-size: 11px;
                 color: rgba(226, 232, 240, 0.85);
                 transition: opacity 160ms ease;
             }
@@ -884,6 +885,7 @@ export class CardHandView implements CardHandDndSurface {
             .card-hand-widget__chip-value {
                 font-weight: 600;
                 color: #f8fafc;
+                font-size: 12px;
             }
 
             .card-hand-widget__chip--deck {
@@ -906,11 +908,11 @@ export class CardHandView implements CardHandDndSurface {
                 border: 1px solid rgba(250, 204, 21, 0.4);
                 background: rgba(250, 204, 21, 0.12);
                 color: rgba(254, 249, 195, 0.95);
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 600;
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
-                padding: 6px 14px;
+                padding: 5px 12px;
                 transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
                 cursor: pointer;
             }
@@ -1046,13 +1048,13 @@ export class CardHandView implements CardHandDndSurface {
                 position: relative;
                 display: flex;
                 flex-direction: column;
-                gap: 16px;
-                padding: 18px 20px 24px;
+                gap: 12px;
+                padding: 14px 16px 18px;
                 width: 100%;
-                border-radius: 16px;
+                border-radius: 14px;
                 background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.78));
                 border: 1px solid rgba(148, 163, 184, 0.25);
-                box-shadow: 0 16px 32px rgba(15, 23, 42, 0.4);
+                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.4);
                 text-align: left;
             }
 
@@ -1060,11 +1062,11 @@ export class CardHandView implements CardHandDndSurface {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                gap: 12px;
+                gap: 10px;
             }
 
             .card-hand-widget__title {
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: 600;
                 letter-spacing: 0.02em;
                 color: #f8fafc;
@@ -1072,7 +1074,7 @@ export class CardHandView implements CardHandDndSurface {
 
             .card-hand-widget__cost-chip {
                 border-radius: 999px;
-                padding: 4px 10px;
+                padding: 3px 9px;
                 background: rgba(14, 116, 144, 0.35);
                 border: 1px solid rgba(34, 211, 238, 0.45);
                 color: rgba(224, 242, 254, 0.95);
@@ -1082,10 +1084,10 @@ export class CardHandView implements CardHandDndSurface {
             .card-hand-widget__card-body {
                 display: flex;
                 flex-direction: column;
-                gap: 16px;
-                font-size: 14px;
+                gap: 12px;
+                font-size: 13px;
                 color: rgba(226, 232, 240, 0.9);
-                line-height: 1.5;
+                line-height: 1.45;
             }
 
             .card-hand-widget__flavor {
@@ -1096,20 +1098,20 @@ export class CardHandView implements CardHandDndSurface {
             .card-hand-widget__effect {
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
+                gap: 5px;
             }
 
             .card-hand-widget__effect-text {
                 margin: 0;
-                font-size: 15px;
+                font-size: 14px;
                 color: rgba(148, 163, 184, 0.95);
             }
 
             .card-hand-widget__shade {
                 position: absolute;
-                left: 12px;
-                right: 12px;
-                height: 48px;
+                left: 10px;
+                right: 10px;
+                height: 40px;
                 pointer-events: none;
                 opacity: 0;
                 transition: opacity 160ms ease;
@@ -1118,7 +1120,7 @@ export class CardHandView implements CardHandDndSurface {
 
             .card-hand-widget__shade--bottom {
                 top: auto;
-                bottom: 12px;
+                bottom: 10px;
                 transform: rotate(180deg);
             }
 
@@ -1128,9 +1130,9 @@ export class CardHandView implements CardHandDndSurface {
 
             .card-hand-widget__nav {
                 position: absolute;
-                left: calc(50% - 16px);
-                width: 32px;
-                height: 32px;
+                left: calc(50% - 14px);
+                width: 28px;
+                height: 28px;
                 border-radius: 999px;
                 background: rgba(30, 41, 59, 0.75);
                 border: 1px solid rgba(148, 163, 184, 0.35);
@@ -1149,11 +1151,11 @@ export class CardHandView implements CardHandDndSurface {
             }
 
             .card-hand-widget__nav--up {
-                top: 8px;
+                top: 6px;
             }
 
             .card-hand-widget__nav--down {
-                bottom: 8px;
+                bottom: 6px;
             }
 
             .card-hand-widget__card-wrapper--dragging {
