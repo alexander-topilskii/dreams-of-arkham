@@ -120,7 +120,7 @@ export class CardHand {
         this.translucent = options.translucent ?? true
         this.minViewportHeight = options.height ?? 300
         this.cardWidth = options.cardWidth ?? 336
-        this.cardHeight = options.cardHeight ?? Math.floor(this.cardWidth * 1.4)
+        this.cardHeight = options.cardHeight ?? Math.floor(this.cardWidth * 1.1)
         this.gap = options.gap ?? 10
         this.enableTouchInertia = options.enableTouchInertia ?? true
         this.onViewportChange = options.onViewportChange
@@ -369,38 +369,31 @@ export class CardHand {
         const cardInner = document.createElement('div')
         cardInner.className = 'card-hand-widget__card-inner'
 
-        const artFrame = document.createElement('div')
-        artFrame.className = 'card-hand-widget__art-frame'
-
-        const art = document.createElement('div')
-        art.className = 'card-hand-widget__art'
-        if (card.artUrl) {
-            const img = document.createElement('img')
-            img.src = card.artUrl
-            img.alt = card.title
-            img.decoding = 'async'
-            img.loading = 'lazy'
-            img.addEventListener('error', () => {
-                img.remove()
-                this.applyArtFallback(art, card)
-            })
-            art.appendChild(img)
-        } else {
-            this.applyArtFallback(art, card)
-        }
-
-        artFrame.appendChild(art)
-
-        const body = document.createElement('div')
-        body.className = 'card-hand-widget__card-body'
+        const header = document.createElement('div')
+        header.className = 'card-hand-widget__card-header'
 
         const title = document.createElement('div')
         title.className = 'card-hand-widget__title'
         title.textContent = card.title
         title.title = card.title
 
-        const flavor = document.createElement('div')
-        flavor.className = 'card-hand-widget__flavor'
+        const cost = document.createElement('div')
+        cost.className = 'card-hand-widget__cost-chip'
+        cost.textContent = String(card.cost)
+        cost.title = `Стоимость: ${card.cost}`
+
+        header.append(title, cost)
+
+        const body = document.createElement('div')
+        body.className = 'card-hand-widget__card-body'
+
+        if (card.description?.trim()) {
+            const flavor = document.createElement('div')
+            flavor.className = 'card-hand-widget__flavor'
+            flavor.textContent = card.description
+            flavor.title = card.description
+            body.append(flavor)
+        }
 
         const effect = document.createElement('div')
         effect.className = 'card-hand-widget__effect'
@@ -413,23 +406,9 @@ export class CardHand {
         effectText.textContent = this.getEffectDescription(card.effect)
 
         effect.append(effectLabel, effectText)
-
-        const cost = document.createElement('div')
-        cost.className = 'card-hand-widget__cost-chip'
-        cost.textContent = String(card.cost)
-        cost.title = `Стоимость: ${card.cost}`
-
-        body.append(title)
-
-        if (card.description?.trim()) {
-            flavor.textContent = card.description
-            flavor.title = card.description
-            body.append(flavor)
-        }
-
         body.append(effect)
 
-        cardInner.append(cost, artFrame, body)
+        cardInner.append(header, body)
 
         button.append(cardInner)
 
@@ -874,14 +853,6 @@ export class CardHand {
         chip.classList.toggle('card-hand-widget__chip--empty', isEmpty)
     }
 
-    private applyArtFallback(art: HTMLDivElement, card: InternalCard) {
-        art.classList.add('card-hand-widget__art--fallback')
-        art.dataset.effectGlyph = this.getEffectGlyph(card.effect)
-        art.title = card.title
-        art.setAttribute('role', 'img')
-        art.setAttribute('aria-label', card.title)
-    }
-
     private getEffectDescription(effect: CardEffect): string {
         switch (effect) {
             case 'move':
@@ -898,25 +869,6 @@ export class CardHand {
                 return 'Ослепите всех врагов дымом и выйдите из боя, получив 1 урон.'
             case 'heal':
                 return 'Восстановите 2 единицы здоровья, перевязав раны.'
-        }
-    }
-
-    private getEffectGlyph(effect: CardEffect): string {
-        switch (effect) {
-            case 'move':
-                return '⇥'
-            case 'attack':
-                return '✦'
-            case 'hide':
-                return '☽'
-            case 'search':
-                return '✸'
-            case 'evade':
-                return '↺'
-            case 'smoke':
-                return '☁'
-            case 'heal':
-                return '✚'
         }
     }
 
@@ -1218,9 +1170,6 @@ export class CardHand {
                 cursor: grab;
                 font: inherit;
                 color: inherit;
-                perspective: 1200px;
-                position: relative;
-                transition: transform 0.35s ease;
             }
 
             .card-hand-widget__card:focus-visible {
@@ -1235,79 +1184,36 @@ export class CardHand {
                 position: relative;
                 display: flex;
                 flex-direction: column;
+                gap: 16px;
                 height: 100%;
-                border-radius: 22px;
-                border: 1px solid rgba(148, 197, 255, 0.28);
-                background: linear-gradient(155deg, rgba(15, 23, 42, 0.76), rgba(59, 130, 246, 0.18));
-                box-shadow: 0 ${CARD_ELEVATION}px 36px rgba(8, 12, 24, 0.55);
-                padding: 18px 20px 22px;
-                overflow: hidden;
-                transition:
-                    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-                    box-shadow 0.45s ease,
-                    border-color 0.35s ease,
-                    filter 0.45s ease;
-                transform-style: preserve-3d;
-                backdrop-filter: blur(18px);
-                -webkit-backdrop-filter: blur(18px);
-            }
-
-            .card-hand-widget__card-inner::before {
-                content: '';
-                position: absolute;
-                inset: 0;
-                border-radius: inherit;
-                background:
-                    radial-gradient(circle at 18% 12%, rgba(148, 197, 255, 0.18), transparent 45%),
-                    radial-gradient(circle at 82% 24%, rgba(96, 165, 250, 0.12), transparent 50%),
-                    linear-gradient(140deg, rgba(148, 163, 184, 0.08), rgba(15, 23, 42, 0.65));
-                pointer-events: none;
-                opacity: 0.9;
-            }
-
-            .card-hand-widget__card-inner::after {
-                content: '';
-                position: absolute;
-                inset: -65% -55% 30% 30%;
-                border-radius: inherit;
-                background: linear-gradient(120deg, rgba(241, 245, 249, 0.18), rgba(59, 130, 246, 0));
-                transform: rotate(10deg);
-                opacity: 0;
-                transition: opacity 0.5s ease;
-                pointer-events: none;
-            }
-
-            .card-hand-widget__card-inner > * {
-                position: relative;
-                z-index: 1;
+                border-radius: 14px;
+                border: 1px solid rgba(148, 163, 184, 0.35);
+                background: rgba(15, 23, 42, 0.92);
+                box-shadow: 0 ${CARD_ELEVATION}px 24px rgba(15, 23, 42, 0.35);
+                padding: 18px 20px;
+                transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
             }
 
             .card-hand-widget__card:hover .card-hand-widget__card-inner,
             .card-hand-widget__card:focus-visible .card-hand-widget__card-inner {
-                transform: rotateY(-5deg) translateY(-10px) scale(1.03);
-                box-shadow: 0 30px 60px rgba(8, 12, 24, 0.7);
+                transform: translateY(-6px);
                 border-color: rgba(165, 243, 252, 0.55);
-            }
-
-            .card-hand-widget__card:hover .card-hand-widget__card-inner::after,
-            .card-hand-widget__card:focus-visible .card-hand-widget__card-inner::after {
-                opacity: 1;
+                box-shadow: 0 18px 32px rgba(15, 23, 42, 0.4);
             }
 
             .card-hand-widget__card-wrapper--dragging .card-hand-widget__card-inner {
-                transform: rotateY(-4deg) translateY(-16px) scale(1.06);
-                border-color: rgba(250, 204, 21, 0.9);
-                box-shadow: 0 34px 56px rgba(250, 204, 21, 0.32);
+                transform: translateY(-10px);
+                border-color: rgba(250, 204, 21, 0.7);
+                box-shadow: 0 20px 34px rgba(250, 204, 21, 0.2);
             }
 
             .card-hand-widget__card-wrapper--dragging::after {
                 content: '';
                 position: absolute;
-                inset: -8px;
-                border-radius: 26px;
-                border: 2px solid rgba(250, 204, 21, 0.65);
+                inset: -6px;
+                border-radius: 18px;
+                border: 1px dashed rgba(250, 204, 21, 0.5);
                 pointer-events: none;
-                box-shadow: 0 0 36px rgba(250, 204, 21, 0.35);
             }
 
             .card-hand-widget__card-wrapper--error {
@@ -1316,17 +1222,81 @@ export class CardHand {
 
             .card-hand-widget__card-wrapper--error .card-hand-widget__card-inner {
                 border-color: rgba(248, 113, 113, 0.85);
-                box-shadow: 0 28px 42px rgba(248, 113, 113, 0.28);
+                box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35);
             }
 
-            .card-hand-widget__card-wrapper--error::after {
-                content: '';
-                position: absolute;
-                inset: -8px;
-                border-radius: 26px;
-                border: 2px solid rgba(248, 113, 113, 0.65);
-                pointer-events: none;
-                box-shadow: 0 0 28px rgba(248, 113, 113, 0.3);
+            .card-hand-widget__card-body {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                color: rgba(226, 232, 240, 0.92);
+            }
+
+            .card-hand-widget__card-header {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .card-hand-widget__title {
+                font-size: 18px;
+                font-weight: 600;
+                line-height: 1.25;
+                letter-spacing: 0.01em;
+                text-align: left;
+                text-transform: none;
+            }
+
+            .card-hand-widget__flavor {
+                font-size: 14px;
+                line-height: 1.55;
+                color: rgba(226, 232, 240, 0.82);
+                text-align: left;
+                white-space: pre-line;
+            }
+
+            .card-hand-widget__effect {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                font-size: 14px;
+                line-height: 1.55;
+                padding: 12px 14px;
+                border-radius: 10px;
+                border: 1px solid rgba(148, 163, 184, 0.25);
+                background: rgba(30, 41, 59, 0.65);
+                color: rgba(226, 232, 240, 0.95);
+                text-align: left;
+            }
+
+            .card-hand-widget__effect span {
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: rgba(191, 219, 254, 0.75);
+            }
+
+            .card-hand-widget__effect-text {
+                margin: 0;
+                font-size: 14px;
+                white-space: pre-line;
+            }
+
+            .card-hand-widget__cost-chip {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 6px 12px;
+                border-radius: 8px;
+                border: 1px solid rgba(148, 163, 184, 0.35);
+                background: rgba(71, 85, 105, 0.35);
+                font-weight: 600;
+                font-size: 14px;
+                color: rgba(226, 232, 240, 0.95);
+                letter-spacing: 0.05em;
+                flex-shrink: 0;
             }
 
             @keyframes card-hand-widget__shake {
@@ -1336,139 +1306,6 @@ export class CardHand {
                 60% { transform: translateX(-4px); }
                 80% { transform: translateX(4px); }
                 100% { transform: translateX(0); }
-            }
-
-            .card-hand-widget__art-frame {
-                position: relative;
-                border-radius: 16px;
-                overflow: hidden;
-                background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(59, 130, 246, 0.55));
-                flex: 0 0 48%;
-                min-height: clamp(160px, 48%, 220px);
-                display: flex;
-                align-items: stretch;
-                margin: -6px -4px 18px;
-                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.2);
-            }
-
-            .card-hand-widget__art {
-                flex: 1;
-                position: relative;
-                display: flex;
-                align-items: flex-start;
-                justify-content: center;
-            }
-
-            .card-hand-widget__art img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                object-position: center top;
-                display: block;
-            }
-
-            .card-hand-widget__art--fallback {
-                background: radial-gradient(circle at center, rgba(59, 130, 246, 0.35), rgba(30, 41, 59, 0.9));
-                color: rgba(191, 219, 254, 0.9);
-                font-size: 48px;
-                letter-spacing: 0.08em;
-                text-shadow: 0 8px 18px rgba(14, 21, 37, 0.65);
-            }
-
-            .card-hand-widget__art--fallback::before {
-                content: attr(data-effect-glyph);
-            }
-
-            .card-hand-widget__card-body {
-                display: flex;
-                flex-direction: column;
-                gap: 14px;
-                padding-top: 0;
-                flex: 1;
-                justify-content: flex-start;
-                color: rgba(226, 232, 240, 0.92);
-            }
-
-            .card-hand-widget__title {
-                font-size: 20px;
-                font-weight: 600;
-                letter-spacing: 0.01em;
-                text-transform: uppercase;
-                text-align: left;
-            }
-
-            .card-hand-widget__flavor {
-                font-size: 15px;
-                line-height: 1.6;
-                color: rgba(226, 232, 240, 0.9);
-                text-align: left;
-                white-space: pre-line;
-            }
-
-            .card-hand-widget__effect {
-                font-size: 15px;
-                line-height: 1.6;
-                background: rgba(148, 197, 255, 0.1);
-                border-left: 2px solid rgba(125, 211, 252, 0.55);
-                border-radius: 14px;
-                padding: 14px 16px;
-                text-align: left;
-                color: rgba(226, 232, 240, 0.95);
-                box-shadow: inset 0 1px 0 rgba(148, 197, 255, 0.22);
-            }
-
-            .card-hand-widget__effect span {
-                display: block;
-                font-size: 12px;
-                font-weight: 700;
-                letter-spacing: 0.16em;
-                text-transform: uppercase;
-                color: rgba(191, 219, 254, 0.75);
-                margin-bottom: 8px;
-            }
-
-            .card-hand-widget__effect-text {
-                margin: 0;
-                font-size: 15px;
-                white-space: pre-line;
-            }
-
-            .card-hand-widget__cost-chip {
-                position: absolute;
-                top: 18px;
-                right: 18px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                width: 44px;
-                height: 44px;
-                border-radius: 999px;
-                background: radial-gradient(circle at 30% 20%, rgba(224, 242, 254, 0.9), rgba(59, 130, 246, 0.75));
-                border: 1px solid rgba(191, 219, 254, 0.65);
-                box-shadow:
-                    0 0 16px rgba(165, 243, 252, 0.55),
-                    0 12px 24px rgba(15, 23, 42, 0.45);
-                font-weight: 600;
-                font-size: 16px;
-                color: rgba(15, 23, 42, 0.9);
-                text-shadow: 0 0 8px rgba(191, 219, 254, 0.75);
-                letter-spacing: 0.06em;
-                animation: card-hand-widget__rune-glow 4s ease-in-out infinite;
-                z-index: 2;
-            }
-
-            @keyframes card-hand-widget__rune-glow {
-                0%,
-                100% {
-                    box-shadow:
-                        0 0 16px rgba(165, 243, 252, 0.6),
-                        0 12px 24px rgba(15, 23, 42, 0.45);
-                }
-                50% {
-                    box-shadow:
-                        0 0 28px rgba(191, 219, 254, 0.85),
-                        0 14px 30px rgba(8, 12, 24, 0.6);
-                }
             }
 
             .card-hand-widget__shade {
