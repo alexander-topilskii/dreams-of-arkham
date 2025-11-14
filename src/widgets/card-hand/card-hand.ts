@@ -84,7 +84,7 @@ export class CardHand {
         const minViewportHeight = options.height ?? 300;
         const cardWidth = options.cardWidth ?? 336;
         const cardHeight = options.cardHeight ?? Math.floor(cardWidth * 1.1);
-        const gap = options.gap ?? 10;
+        const gap = options.gap ?? 4;
         const enableTouchInertia = options.enableTouchInertia ?? true;
 
         this.onMoveCardDrop = options.onMoveCardDrop;
