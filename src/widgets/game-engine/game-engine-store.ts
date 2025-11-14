@@ -710,7 +710,10 @@ export class GameEngineStore {
         });
     }
 
-    private updateDeckEnemyState(enemyId: string, updater: (card: EventDeckCardConfig) => void): void {
+    private updateDeckEnemyState(
+        enemyId: string,
+        updater: (card: EventDeckCardConfig) => boolean | void,
+    ): void {
         const deckState = this.state.deck;
         if (!deckState) {
             return;
@@ -728,8 +731,10 @@ export class GameEngineStore {
             if (!card) {
                 return;
             }
-            updater(card);
-            modified = true;
+            const result = updater(card);
+            if (result !== false) {
+                modified = true;
+            }
         };
 
         const updateList = (cards: EventDeckCardConfig[]): void => {
@@ -870,6 +875,7 @@ export class GameEngineStore {
                     combat: { engagedEnemyIds: [], evadedEnemyIds: [] },
                 };
             }
+            this.updateEnemyEngagementVisuals([], []);
             return;
         }
 
@@ -899,6 +905,8 @@ export class GameEngineStore {
             engaged.push(characterId);
         }
 
+        this.updateEnemyEngagementVisuals(engaged, retainedEvaded);
+
         if (
             engaged.length === this.state.combat.engagedEnemyIds.length &&
             retainedEvaded.length === this.state.combat.evadedEnemyIds.length &&
@@ -915,6 +923,83 @@ export class GameEngineStore {
                 evadedEnemyIds: retainedEvaded,
             },
         };
+    }
+
+    private updateEnemyEngagementVisuals(
+        engagedEnemyIds: readonly string[],
+        evadedEnemyIds: readonly string[],
+    ): void {
+        if (!this.state.deck) {
+            return;
+        }
+
+        const player = this.config.player;
+        const engagedSet = new Set(engagedEnemyIds);
+        const processed = new Set<string>();
+
+        const applyEngagement = (enemyId: string, engaged: boolean): void => {
+            const normalized = enemyId?.trim();
+            if (!normalized) {
+                return;
+            }
+
+            processed.add(normalized);
+
+            if (engaged) {
+                this.updateDeckEnemyState(normalized, (card) => {
+                    const current = card.engagedWithPlayer;
+                    const nextImage = player.image;
+                    if (
+                        current &&
+                        current.id === player.id &&
+                        current.name === player.name &&
+                        current.image === nextImage
+                    ) {
+                        return false;
+                    }
+
+                    card.engagedWithPlayer = {
+                        id: player.id,
+                        name: player.name,
+                        image: nextImage,
+                    };
+
+                    return true;
+                });
+                return;
+            }
+
+            this.updateDeckEnemyState(normalized, (card) => {
+                if (!card.engagedWithPlayer) {
+                    return false;
+                }
+
+                delete card.engagedWithPlayer;
+                return true;
+            });
+        };
+
+        for (const enemyId of engagedSet) {
+            applyEngagement(enemyId, true);
+        }
+
+        for (const enemyId of evadedEnemyIds) {
+            const normalized = enemyId?.trim();
+            if (!normalized || processed.has(normalized)) {
+                continue;
+            }
+
+            applyEngagement(normalized, false);
+        }
+
+        for (const enemyId of Object.keys(this.state.enemies)) {
+            const normalized = enemyId?.trim();
+            if (!normalized || processed.has(normalized) || engagedSet.has(normalized)) {
+                continue;
+            }
+
+            applyEngagement(normalized, false);
+        }
     }
 
     private applyPlayerDamage(amount: number): void {
@@ -1203,6 +1288,7 @@ function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCa
         delete prepared.linkedCharacterId;
         delete prepared.locationId;
         delete prepared.locationTitle;
+        delete prepared.engagedWithPlayer;
         return prepared;
     });
 }
@@ -1379,6 +1465,7 @@ function spawnEnemyFromCard(
     card.linkedCharacterId = characterId;
     card.locationId = territory.id;
     card.locationTitle = territory.front.title;
+    card.engagedWithPlayer = undefined;
 
     const character: ExpeditionMapCharacterConfig = {
         id: characterId,
@@ -1691,6 +1778,7 @@ export class AttackEnemyWithCardCommand implements GameCommand {
                     locationId: undefined,
                     locationTitle: undefined,
                     healthRemaining: 0,
+                    engagedWithPlayer: undefined,
                 };
 
                 snapshot.discardPile = [...snapshot.discardPile, movedCard];

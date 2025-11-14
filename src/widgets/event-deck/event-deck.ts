@@ -1,5 +1,11 @@
 export type EventDeckCardType = 'enemy' | string;
 
+export type EventDeckEngagementInfo = {
+    id: string;
+    name: string;
+    image?: string;
+};
+
 export interface EventDeckCardConfig {
     id: string;
     title: string;
@@ -16,6 +22,7 @@ export interface EventDeckCardConfig {
     health?: number;
     damage?: number;
     healthRemaining?: number;
+    engagedWithPlayer?: EventDeckEngagementInfo;
 }
 
 export interface EventDeckConfig {
@@ -247,6 +254,44 @@ function ensureStylesMounted() {
             font-size: 0.75rem;
             color: rgba(148, 163, 184, 0.78);
             letter-spacing: 0.02em;
+        }
+
+        .event-card__engagement {
+            margin: 4px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.75rem;
+            color: rgba(226, 232, 240, 0.9);
+            letter-spacing: 0.02em;
+        }
+
+        .event-card__engagement-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(30, 41, 59, 0.85);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.4);
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: rgba(226, 232, 240, 0.8);
+            text-transform: uppercase;
+        }
+
+        .event-card__engagement-avatar-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .event-card__engagement-text {
+            margin: 0;
+            line-height: 1.35;
         }
 
         .event-deck__status-live {
@@ -502,8 +547,8 @@ export class EventDeck {
         return badges.childElementCount > 0 ? badges : null;
     }
 
-    private createCardMeta(card: EventDeckCardConfig): HTMLParagraphElement[] {
-        const meta: HTMLParagraphElement[] = [];
+    private createCardMeta(card: EventDeckCardConfig): HTMLElement[] {
+        const meta: HTMLElement[] = [];
 
         if (card.locationTitle) {
             const location = document.createElement('p');
@@ -521,6 +566,79 @@ export class EventDeck {
             meta.push(enter);
         }
 
+        const engagement = this.createEngagementMeta(card);
+        if (engagement) {
+            meta.push(engagement);
+        }
+
         return meta;
+    }
+
+    private createEngagementMeta(card: EventDeckCardConfig): HTMLDivElement | null {
+        const engaged = card.engagedWithPlayer;
+        if (!engaged) {
+            return null;
+        }
+
+        const engagement = document.createElement('div');
+        engagement.className = 'event-card__engagement';
+
+        const avatarWrapper = document.createElement('div');
+        avatarWrapper.className = 'event-card__engagement-avatar';
+
+        const avatarUrl = this.resolveAssetUrl(engaged.image);
+        if (avatarUrl) {
+            const avatarImage = document.createElement('img');
+            avatarImage.className = 'event-card__engagement-avatar-image';
+            avatarImage.src = avatarUrl;
+            avatarImage.alt = '';
+            avatarImage.decoding = 'async';
+            avatarWrapper.appendChild(avatarImage);
+        } else {
+            avatarWrapper.textContent = this.getNameInitials(engaged.name);
+        }
+
+        const text = document.createElement('span');
+        text.className = 'event-card__engagement-text';
+        text.textContent = `Сражается с ${engaged.name}`;
+
+        engagement.append(avatarWrapper, text);
+
+        return engagement;
+    }
+
+    private resolveAssetUrl(rawUrl?: string): string | undefined {
+        if (!rawUrl) {
+            return undefined;
+        }
+
+        const absolutePattern = /^(?:[a-z]+:)?\/\//i;
+        if (absolutePattern.test(rawUrl) || rawUrl.startsWith('data:')) {
+            return rawUrl;
+        }
+
+        const base = import.meta.env.BASE_URL ?? '/';
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+        const normalizedPath = rawUrl.startsWith('/') ? rawUrl.slice(1) : rawUrl;
+
+        return `${normalizedBase}${normalizedPath}`;
+    }
+
+    private getNameInitials(name: string): string {
+        if (!name) {
+            return '?';
+        }
+
+        const parts = name.trim().split(/\s+/).filter(Boolean);
+        if (parts.length === 0) {
+            return '?';
+        }
+
+        const initials = parts
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() ?? '')
+            .join('');
+
+        return initials || '?';
     }
 }
