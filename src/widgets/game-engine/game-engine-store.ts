@@ -1264,6 +1264,24 @@ function normalizeEnemyDamage(raw?: number): number {
     return 1;
 }
 
+function isCultistEnemy(info: EnemyInfo | undefined): boolean {
+    if (!info) {
+        return false;
+    }
+
+    const name = info.name?.toLowerCase();
+    if (name && name.includes("культист")) {
+        return true;
+    }
+
+    const id = info.id?.toLowerCase();
+    if (id && id.includes("cultist")) {
+        return true;
+    }
+
+    return false;
+}
+
 function initializeDeckCards(cards: readonly EventDeckCardConfig[]): EventDeckCardConfig[] {
     return cards.map((card, index) => {
         const baseId = card.id?.trim() ? card.id.trim() : `event-card-${index + 1}`;
@@ -1670,11 +1688,16 @@ export class MoveWithCardCommand implements GameCommand {
     }
 }
 
+export type TargetEnemyCardCommandOptions = {
+    allowCultistLocationFallback?: boolean;
+};
+
 export class AttackEnemyWithCardCommand implements GameCommand {
     constructor(
         private readonly card: HandCardDescriptor,
         private readonly targetLocationId?: string,
         private readonly targetEnemyId?: string,
+        private readonly options: TargetEnemyCardCommandOptions = {},
     ) {}
 
     public execute(context: GameEngineContext): GameEvent[] {
@@ -1693,31 +1716,62 @@ export class AttackEnemyWithCardCommand implements GameCommand {
         }
 
         const engagedEnemies = context.state.combat.engagedEnemyIds;
+        const preferredEnemyId = this.targetEnemyId?.trim();
+        const allowCultistFallback = this.options.allowCultistLocationFallback === true;
+
+        let enemyId: string | undefined;
+        let enemyInfo: EnemyInfo | undefined;
+
         if (engagedEnemies.length === 0) {
-            const message = `${playerName} размахивает «${card.title}», но враги не вступили в бой.`;
+            if (!allowCultistFallback || !preferredEnemyId) {
+                const message = `${playerName} размахивает «${card.title}», но враги не вступили в бой.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            const fallbackEnemy = context.state.enemies[preferredEnemyId];
+            if (!fallbackEnemy) {
+                const message = `${playerName} теряет цель — культист скрывается из виду.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            if (!isCultistEnemy(fallbackEnemy)) {
+                const message = `${playerName} пытается применить «${card.title}», но цель не является культистом.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            if ((fallbackEnemy.locationId ?? '').trim() !== currentLocationId) {
+                const message = `${playerName} не может достать культиста в другой локации.`;
+                return this.createFailure(events, "wrong-location", message);
+            }
+
+            enemyId = preferredEnemyId;
+            enemyInfo = fallbackEnemy;
+        } else {
+            enemyId = engagedEnemies[0];
+
+            if (preferredEnemyId) {
+                if (!engagedEnemies.includes(preferredEnemyId)) {
+                    const message = `${playerName} не может атаковать эту цель — она не вступила в бой.`;
+                    return this.createFailure(events, "not-engaged", message);
+                }
+                enemyId = preferredEnemyId;
+            }
+
+            enemyInfo = context.state.enemies[enemyId];
+            if (!enemyInfo) {
+                const message = `${playerName} теряет цель — враг исчез.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+        }
+
+        if (!enemyId || !enemyInfo) {
+            const message = `${playerName} теряет цель — враг исчез.`;
             return this.createFailure(events, "not-engaged", message);
         }
 
         if (context.state.actionsRemaining < card.cost) {
             const message = `${playerName} слишком вымотан, чтобы провести атаку (нужно ${card.cost} действий).`;
             return this.createFailure(events, "not-enough-actions", message);
-        }
-
-        const preferredEnemyId = this.targetEnemyId?.trim();
-        let enemyId = engagedEnemies[0];
-
-        if (preferredEnemyId) {
-            if (!engagedEnemies.includes(preferredEnemyId)) {
-                const message = `${playerName} не может атаковать эту цель — она не вступила в бой.`;
-                return this.createFailure(events, "not-engaged", message);
-            }
-            enemyId = preferredEnemyId;
-        }
-
-        const enemyInfo = context.state.enemies[enemyId];
-        if (!enemyInfo) {
-            const message = `${playerName} теряет цель — враг исчез.`;
-            return this.createFailure(events, "not-engaged", message);
         }
 
         const nextActions = context.state.actionsRemaining - card.cost;
@@ -1828,6 +1882,7 @@ export class EvadeEnemyWithCardCommand implements GameCommand {
         private readonly card: HandCardDescriptor,
         private readonly targetLocationId?: string,
         private readonly targetEnemyId?: string,
+        private readonly options: TargetEnemyCardCommandOptions = {},
     ) {}
 
     public execute(context: GameEngineContext): GameEvent[] {
@@ -1846,8 +1901,48 @@ export class EvadeEnemyWithCardCommand implements GameCommand {
         }
 
         const engagedEnemies = context.state.combat.engagedEnemyIds;
+        const preferredEnemyId = this.targetEnemyId?.trim();
+        const allowCultistFallback = this.options.allowCultistLocationFallback === true;
+
+        let enemyId: string | undefined;
+
         if (engagedEnemies.length === 0) {
-            const message = `${playerName} пытается использовать «${card.title}», но враги не пристают.`;
+            if (!allowCultistFallback || !preferredEnemyId) {
+                const message = `${playerName} пытается использовать «${card.title}», но враги не пристают.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            const fallbackEnemy = context.state.enemies[preferredEnemyId];
+            if (!fallbackEnemy) {
+                const message = `${playerName} не может найти нужного культиста, чтобы скрыться.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            if (!isCultistEnemy(fallbackEnemy)) {
+                const message = `${playerName} пытается скрыться, но цель не является культистом.`;
+                return this.createFailure(events, "not-engaged", message);
+            }
+
+            if ((fallbackEnemy.locationId ?? '').trim() !== currentLocationId) {
+                const message = `${playerName} не может скрыться от культиста в другой локации.`;
+                return this.createFailure(events, "wrong-location", message);
+            }
+
+            enemyId = preferredEnemyId;
+        } else {
+            enemyId = engagedEnemies[0];
+
+            if (preferredEnemyId) {
+                if (!engagedEnemies.includes(preferredEnemyId)) {
+                    const message = `${playerName} не может скрыться от этой цели — она не ведёт бой.`;
+                    return this.createFailure(events, "not-engaged", message);
+                }
+                enemyId = preferredEnemyId;
+            }
+        }
+
+        if (!enemyId) {
+            const message = `${playerName} теряет цель — враг исчез.`;
             return this.createFailure(events, "not-engaged", message);
         }
 
@@ -1856,18 +1951,13 @@ export class EvadeEnemyWithCardCommand implements GameCommand {
             return this.createFailure(events, "not-enough-actions", message);
         }
 
-        const preferredEnemyId = this.targetEnemyId?.trim();
-        let enemyId = engagedEnemies[0];
-
-        if (preferredEnemyId) {
-            if (!engagedEnemies.includes(preferredEnemyId)) {
-                const message = `${playerName} не может скрыться от этой цели — она не ведёт бой.`;
-                return this.createFailure(events, "not-engaged", message);
-            }
-            enemyId = preferredEnemyId;
+        const enemyInfo = context.state.enemies[enemyId];
+        if (!enemyInfo) {
+            const message = `${playerName} теряет цель — враг исчез.`;
+            return this.createFailure(events, "not-engaged", message);
         }
 
-        const enemyName = context.state.enemies[enemyId]?.name ?? "врага";
+        const enemyName = enemyInfo.name ?? "врага";
         const nextActions = context.state.actionsRemaining - card.cost;
         const message = `${playerName} использует «${card.title}» и уходит от ${enemyName}.`;
 
