@@ -178,7 +178,8 @@ const cardHand = new CardHand(handRoot, {
     onMoveCardDropFailure: (card, territoryId, message) =>
         cardHandController.onDropFailure(card, territoryId, message),
     onPlayerCardDrop: (card) => cardHandController.onDropOnPlayer(card),
-    onEnemyCardDrop: (card, enemyId) => cardHandController.onDropOnEnemy(card, enemyId),
+    onEnemyCardDrop: (card, enemyId, context) =>
+        cardHandController.onDropOnEnemy(card, enemyId, context),
     onEndTurn: () => cardHandController?.handleEndTurn(),
 })
 

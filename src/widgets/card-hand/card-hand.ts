@@ -26,6 +26,11 @@ export type CardHandDeckInfo = {
     discardPileCount: number
 }
 
+export type CardHandEnemyDropContext = {
+    source?: 'effect' | 'token' | 'unknown'
+    effectId?: string
+}
+
 export type CardHandOptions = {
     cards?: CardHandCard[]
     height?: number
@@ -40,8 +45,17 @@ export type CardHandOptions = {
     onMoveCardTargetMissing?: (card: CardHandCard) => void
     onPlayerCardDrop?: (card: CardHandCard) => CardHandDropResult | Promise<CardHandDropResult>
     onPlayerCardDropFailure?: (card: CardHandCard, message?: string) => void
-    onEnemyCardDrop?: (card: CardHandCard, enemyId: string) => CardHandDropResult | Promise<CardHandDropResult>
-    onEnemyCardDropFailure?: (card: CardHandCard, enemyId: string, message?: string) => void
+    onEnemyCardDrop?: (
+        card: CardHandCard,
+        enemyId: string,
+        context?: CardHandEnemyDropContext,
+    ) => CardHandDropResult | Promise<CardHandDropResult>
+    onEnemyCardDropFailure?: (
+        card: CardHandCard,
+        enemyId: string,
+        message?: string,
+        context?: CardHandEnemyDropContext,
+    ) => void
     onCardConsumed?: (card: CardHandCard) => void
     onEndTurn?: () => void | Promise<void>
 }
@@ -76,7 +90,7 @@ type ZoneChipElements = {
 type DropTarget =
     | { type: 'territory'; territoryId: string }
     | { type: 'player' }
-    | { type: 'enemy'; enemyId: string }
+    | { type: 'enemy'; enemyId: string; effectId?: string; source?: 'effect' | 'token' | 'unknown' }
 
 export class CardHand {
     private static stylesInjected = false
@@ -634,7 +648,7 @@ export class CardHand {
         }
 
         if (dropTarget.type === 'enemy') {
-            await this.resolveEnemyDrop(card, dropTarget.enemyId, wrapper)
+            await this.resolveEnemyDrop(card, dropTarget, wrapper)
             return
         }
 
@@ -735,21 +749,31 @@ export class CardHand {
         }
     }
 
-    private async resolveEnemyDrop(card: InternalCard, enemyId: string, wrapper: HTMLDivElement) {
+    private async resolveEnemyDrop(
+        card: InternalCard,
+        target: Extract<DropTarget, { type: 'enemy' }>,
+        wrapper: HTMLDivElement,
+    ) {
         if (!this.onEnemyCardDrop) {
             console.warn('CardHand: onEnemyCardDrop handler is not provided.')
             this.applyCardError(wrapper)
             return
         }
 
+        const enemyId = target.enemyId
+        const context: CardHandEnemyDropContext = {
+            source: target.source,
+            effectId: target.effectId,
+        }
+
         if (!enemyId) {
             this.applyCardError(wrapper)
-            this.onEnemyCardDropFailure?.(card, enemyId, 'Не удалось определить врага')
+            this.onEnemyCardDropFailure?.(card, enemyId, 'Не удалось определить врага', context)
             return
         }
 
         try {
-            const result = await this.onEnemyCardDrop(card, enemyId)
+            const result = await this.onEnemyCardDrop(card, enemyId, context)
             if (result && result.status === 'success') {
                 this.onCardConsumed?.(card)
                 this.removeCard(card.instanceId)
@@ -757,12 +781,12 @@ export class CardHand {
             }
 
             const message = result?.message
-            this.onEnemyCardDropFailure?.(card, enemyId, message)
+            this.onEnemyCardDropFailure?.(card, enemyId, message, context)
             this.applyCardError(wrapper)
         } catch (error) {
             const message = error instanceof Error ? error.message : undefined
             console.error('CardHand: failed to resolve enemy drop', error)
-            this.onEnemyCardDropFailure?.(card, enemyId, message)
+            this.onEnemyCardDropFailure?.(card, enemyId, message, context)
             this.applyCardError(wrapper)
         }
     }
@@ -777,7 +801,8 @@ export class CardHand {
         if (enemyEffect) {
             const enemyId = enemyEffect.dataset.enemyId?.trim()
             if (enemyId) {
-                return { type: 'enemy', enemyId }
+                const effectId = enemyEffect.dataset.effectId?.trim()
+                return { type: 'enemy', enemyId, effectId, source: 'effect' }
             }
         }
 

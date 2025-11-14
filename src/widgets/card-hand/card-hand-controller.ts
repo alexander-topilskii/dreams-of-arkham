@@ -1,4 +1,9 @@
-import { CardHand, type CardHandCard, type CardHandDropResult } from "./card-hand";
+import {
+    CardHand,
+    type CardHandCard,
+    type CardHandDropResult,
+    type CardHandEnemyDropContext,
+} from "./card-hand";
 import {
     AddDebugCardCommand,
     AttackEnemyWithCardCommand,
@@ -90,16 +95,30 @@ export class CardHandController {
         return this.finalizeDropResult("Не удалось применить карту к персонажу.");
     }
 
-    onDropOnEnemy(card: CardHandCard, enemyId: string): CardHandDropResult {
+    onDropOnEnemy(
+        card: CardHandCard,
+        enemyId: string,
+        context?: CardHandEnemyDropContext,
+    ): CardHandDropResult {
         const descriptor = this.createDescriptor(card);
         this.lastDropResult = undefined;
 
+        const allowCultistFallback = context?.source === "effect";
+
         switch (card.effect) {
             case "attack":
-                this.store.dispatch(new AttackEnemyWithCardCommand(descriptor, undefined, enemyId));
+                this.store.dispatch(
+                    new AttackEnemyWithCardCommand(descriptor, undefined, enemyId, {
+                        allowCultistLocationFallback: allowCultistFallback,
+                    }),
+                );
                 break;
             case "evade":
-                this.store.dispatch(new EvadeEnemyWithCardCommand(descriptor, undefined, enemyId));
+                this.store.dispatch(
+                    new EvadeEnemyWithCardCommand(descriptor, undefined, enemyId, {
+                        allowCultistLocationFallback: allowCultistFallback,
+                    }),
+                );
                 break;
             default:
                 this.lastDropResult = {
