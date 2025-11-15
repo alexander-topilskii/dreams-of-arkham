@@ -1006,8 +1006,9 @@ export class CardHandView implements CardHandDndSurface {
                 justify-content: center;
                 align-items: center;
                 align-self: center;
-                width: 100%;
-                max-width: 100%;
+                width: auto;
+                max-width: 280px;
+                flex: 0 0 auto;
                 transition: transform 0.2s ease, filter 0.2s ease;
             }
 
