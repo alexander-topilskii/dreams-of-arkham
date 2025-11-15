@@ -409,7 +409,9 @@ export class CardHandView implements CardHandDndSurface {
         }
         wrapper.dataset.id = card.instanceId;
         wrapper.dataset.index = String(index);
+        const cardWidth = `${this.options.cardWidth}px`;
         wrapper.style.width = "100%";
+        wrapper.style.maxWidth = cardWidth;
         wrapper.style.flex = "0 0 auto";
         wrapper.style.scrollSnapAlign = "start";
 
@@ -420,7 +422,7 @@ export class CardHandView implements CardHandDndSurface {
         button.dataset.cardEffect = card.effect;
         button.dataset.cardType = card.id;
         button.style.width = "100%";
-        button.style.maxWidth = `${this.options.cardWidth}px`;
+        button.style.maxWidth = "100%";
         button.style.minHeight = `${this.options.cardHeight}px`;
         button.addEventListener("pointerdown", (event) => this.handleCardPointerDown(card.instanceId, event));
 
@@ -1003,6 +1005,9 @@ export class CardHandView implements CardHandDndSurface {
                 display: flex;
                 justify-content: center;
                 align-items: center;
+                align-self: center;
+                width: 100%;
+                max-width: 100%;
                 transition: transform 0.2s ease, filter 0.2s ease;
             }
 
@@ -1026,7 +1031,9 @@ export class CardHandView implements CardHandDndSurface {
             }
 
             .card-hand-widget__card {
+                display: block;
                 width: 100%;
+                max-width: 100%;
                 background: transparent;
                 border: none;
                 padding: 0;
