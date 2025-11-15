@@ -7,6 +7,13 @@ export type HandCardDefinition = {
     image?: string;
     cost: number;
     effect: CardEffect;
+    cardType?: string;
+    tags?: string[];
+    effectText?: string;
+    flavorText?: string;
+    artist?: string;
+    copyright?: string;
+    collectorNumber?: string;
 };
 
 export type HandCardContent = HandCardDefinition & { instanceId: string };

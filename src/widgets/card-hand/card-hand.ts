@@ -11,6 +11,13 @@ export type CardHandCard = {
     cost: number;
     effect: CardEffect;
     artUrl?: string;
+    cardType?: string;
+    tags?: string[];
+    effectText?: string;
+    flavorText?: string;
+    artist?: string;
+    copyright?: string;
+    collectorNumber?: string;
     instanceId?: string;
 };
 
@@ -83,7 +90,8 @@ export class CardHand {
         const translucent = options.translucent ?? true;
         const minViewportHeight = options.height ?? 260;
         const cardWidth = options.cardWidth ?? 280;
-        const cardHeight = options.cardHeight ?? Math.floor(cardWidth * 1.05);
+        const requestedCardHeight = options.cardHeight ?? Math.floor(cardWidth * 1.4);
+        const cardHeight = Math.max(requestedCardHeight, 420);
         const gap = options.gap ?? 3;
         const enableTouchInertia = options.enableTouchInertia ?? true;
 
