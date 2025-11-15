@@ -429,46 +429,79 @@ export class CardHandView implements CardHandDndSurface {
         const cardInner = document.createElement("div");
         cardInner.className = "card-hand-widget__card-inner";
 
-        const header = document.createElement("div");
-        header.className = "card-hand-widget__card-header";
+        const artwork = document.createElement("div");
+        artwork.className = "card-hand-widget__artwork";
+        const artUrl = card.artUrl?.trim();
+        if (artUrl) {
+            artwork.style.backgroundImage = `url("${artUrl}")`;
+        } else {
+            artwork.classList.add("card-hand-widget__artwork--placeholder");
+        }
+
+        const typeElement = document.createElement("div");
+        typeElement.className = "card-hand-widget__type";
+        const typeLabel = this.getCardTypeLabel(card);
+        if (typeLabel) {
+            typeElement.textContent = typeLabel;
+        } else {
+            typeElement.style.display = "none";
+        }
 
         const title = document.createElement("div");
         title.className = "card-hand-widget__title";
         title.textContent = card.title;
         title.title = card.title;
 
-        const cost = document.createElement("div");
-        cost.className = "card-hand-widget__cost-chip";
-        cost.textContent = String(card.cost);
-        cost.title = `Стоимость: ${card.cost}`;
-
-        header.append(title, cost);
-
-        const body = document.createElement("div");
-        body.className = "card-hand-widget__card-body";
-
-        if (card.description?.trim()) {
-            const flavor = document.createElement("div");
-            flavor.className = "card-hand-widget__flavor";
-            flavor.textContent = card.description;
-            flavor.title = card.description;
-            body.append(flavor);
+        const tags = document.createElement("div");
+        tags.className = "card-hand-widget__tags";
+        const tagsList = this.getCardTags(card);
+        if (tagsList.length > 0) {
+            tags.textContent = tagsList.join(" • ");
+        } else {
+            tags.style.display = "none";
         }
 
         const effect = document.createElement("div");
         effect.className = "card-hand-widget__effect";
 
-        const effectLabel = document.createElement("span");
+        const effectLabel = document.createElement("div");
+        effectLabel.className = "card-hand-widget__effect-label";
         effectLabel.textContent = "Эффект";
 
         const effectText = document.createElement("p");
         effectText.className = "card-hand-widget__effect-text";
-        effectText.textContent = this.getEffectDescription(card.effect);
+        effectText.textContent = this.getEffectText(card);
 
         effect.append(effectLabel, effectText);
-        body.append(effect);
 
-        cardInner.append(header, body);
+        const flavorText = card.flavorText?.trim();
+        const flavor = document.createElement("div");
+        flavor.className = "card-hand-widget__flavor";
+        if (flavorText) {
+            flavor.textContent = flavorText;
+        } else {
+            flavor.style.display = "none";
+        }
+
+        const footer = document.createElement("div");
+        footer.className = "card-hand-widget__footer";
+        const footerItems = this.getFooterItems(card, card.cost);
+        if (footerItems.length > 0) {
+            footerItems.forEach((text) => {
+                const span = document.createElement("span");
+                span.textContent = text;
+                footer.append(span);
+            });
+        } else {
+            footer.style.display = "none";
+        }
+
+        const cost = document.createElement("div");
+        cost.className = "card-hand-widget__cost-badge";
+        cost.textContent = String(card.cost);
+        cost.title = `Стоимость: ${card.cost}`;
+
+        cardInner.append(artwork, typeElement, title, tags, effect, flavor, footer, cost);
 
         button.append(cardInner);
 
@@ -477,7 +510,9 @@ export class CardHandView implements CardHandDndSurface {
 
         const baseHeight = this.options.cardHeight;
         const contentHeight = Math.ceil(cardInner.scrollHeight);
-        button.style.height = `${Math.max(baseHeight, contentHeight)}px`;
+        const targetHeight = Math.max(baseHeight, contentHeight);
+        button.style.minHeight = `${baseHeight}px`;
+        button.style.height = `${targetHeight}px`;
 
         this.cardElements.set(card.instanceId, wrapper);
     }
@@ -754,6 +789,75 @@ export class CardHandView implements CardHandDndSurface {
         chip.classList.toggle("card-hand-widget__chip--empty", isEmpty);
     }
 
+    private getCardTypeLabel(card: InternalCard): string {
+        const explicit = card.cardType?.trim();
+        if (explicit) {
+            return explicit;
+        }
+        return this.getDefaultTypeLabel(card.effect);
+    }
+
+    private getDefaultTypeLabel(effect: InternalCard["effect"]): string {
+        switch (effect) {
+            case "move":
+                return "ПЕРЕМЕЩЕНИЕ";
+            case "attack":
+                return "АТАКА";
+            case "hide":
+                return "СКРЫТЬСЯ";
+            case "search":
+                return "ПОИСК";
+            case "evade":
+                return "УКЛОНЕНИЕ";
+            case "smoke":
+                return "ДЫМОВАЯ ЗАВЕСА";
+            case "heal":
+                return "ЛЕЧЕНИЕ";
+            default:
+                return "СОБЫТИЕ";
+        }
+    }
+
+    private getCardTags(card: InternalCard): string[] {
+        if (card.tags && card.tags.length > 0) {
+            return card.tags.filter((tag) => tag.trim().length > 0);
+        }
+        return this.getDefaultTags(card.effect);
+    }
+
+    private getDefaultTags(effect: InternalCard["effect"]): string[] {
+        switch (effect) {
+            case "move":
+                return ["Передвижение"];
+            case "attack":
+                return ["Бой"];
+            case "hide":
+                return ["Интрига"];
+            case "search":
+                return ["Исследование"];
+            case "evade":
+                return ["Ловкость"];
+            case "smoke":
+                return ["Тактика"];
+            case "heal":
+                return ["Поддержка"];
+            default:
+                return [];
+        }
+    }
+
+    private getEffectText(card: InternalCard): string {
+        const explicit = card.effectText?.trim();
+        if (explicit) {
+            return explicit;
+        }
+        const description = card.description?.trim();
+        if (description) {
+            return description;
+        }
+        return this.getEffectDescription(card.effect);
+    }
+
     private getEffectDescription(effect: InternalCard["effect"]): string {
         switch (effect) {
             case "move":
@@ -770,7 +874,30 @@ export class CardHandView implements CardHandDndSurface {
                 return "Ослепите всех врагов дымом и выйдите из боя, получив 1 урон.";
             case "heal":
                 return "Восстановите 2 единицы здоровья, перевязав раны.";
+            default:
+                return "Сыграйте карту, чтобы активировать эффект.";
         }
+    }
+
+    private getFooterItems(card: InternalCard, cost: number): string[] {
+        const items: string[] = [];
+        const artist = card.artist?.trim();
+        if (artist) {
+            items.push(`Illus. ${artist}`);
+        }
+        const copyright = card.copyright?.trim();
+        if (copyright) {
+            items.push(copyright);
+        }
+        const collector = card.collectorNumber?.trim();
+        if (collector) {
+            items.push(collector);
+        }
+        if (items.length === 0) {
+            items.push(`Стоимость: ${cost}`);
+            items.push(card.id.toUpperCase());
+        }
+        return items.slice(0, 3);
     }
 
     private createZoneChip(label: string, modifier?: string): ZoneChipElements {
@@ -1004,10 +1131,10 @@ export class CardHandView implements CardHandDndSurface {
                 position: relative;
                 display: flex;
                 justify-content: center;
-                align-items: center;
+                align-items: stretch;
                 align-self: center;
                 width: auto;
-                max-width: 280px;
+                max-width: 300px;
                 flex: 0 0 auto;
                 transition: transform 0.2s ease, filter 0.2s ease;
             }
@@ -1035,9 +1162,7 @@ export class CardHandView implements CardHandDndSurface {
                 display: block;
                 width: 100%;
                 max-width: 100%;
-                height: auto;
-                min-height: 0;
-                /* можно задать aspect-ratio или max-height вместо фиксированного height */
+                height: 100%;
                 background: transparent;
                 border: none;
                 padding: 0;
@@ -1059,63 +1184,144 @@ export class CardHandView implements CardHandDndSurface {
                 position: relative;
                 display: flex;
                 flex-direction: column;
-                gap: 12px;
-                padding: 14px 16px 18px;
-                width: 100%;
-                border-radius: 14px;
-                background: linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.78));
-                border: 1px solid rgba(148, 163, 184, 0.25);
-                box-shadow: 0 12px 28px rgba(15, 23, 42, 0.4);
+                height: 100%;
+                padding: 16px 18px 54px;
+                border-radius: 20px;
+                background: linear-gradient(180deg, #f3e5c9 0%, #e2c49b 45%, #cfa173 100%);
+                border: 2px solid rgba(123, 79, 40, 0.85);
+                box-shadow: 0 18px 34px rgba(73, 45, 22, 0.45);
                 text-align: left;
+                font-family: "Times New Roman", "Georgia", serif;
+                color: #351b0f;
+                overflow: hidden;
             }
 
-            .card-hand-widget__card-header {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 10px;
+            .card-hand-widget__card-inner::before {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 55%);
+                pointer-events: none;
+            }
+
+            .card-hand-widget__card:hover .card-hand-widget__card-inner,
+            .card-hand-widget__card:focus-visible .card-hand-widget__card-inner {
+                box-shadow: 0 22px 48px rgba(73, 45, 22, 0.55);
+                transform: translateY(-2px);
+                border-color: rgba(147, 93, 44, 0.95);
+            }
+
+            .card-hand-widget__artwork {
+                position: relative;
+                flex: 0 0 auto;
+                height: 160px;
+                margin: -16px -18px 14px;
+                background-size: cover;
+                background-position: center;
+            }
+
+            .card-hand-widget__artwork::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), transparent 60%);
+            }
+
+            .card-hand-widget__artwork--placeholder {
+                background-image: repeating-linear-gradient(45deg, rgba(87, 59, 33, 0.25) 0, rgba(87, 59, 33, 0.25) 10px, rgba(236, 214, 177, 0.3) 10px, rgba(236, 214, 177, 0.3) 20px);
+            }
+
+            .card-hand-widget__type {
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.2em;
+                text-transform: uppercase;
+                color: #6e3f1c;
+                margin-bottom: 4px;
             }
 
             .card-hand-widget__title {
-                font-size: 18px;
-                font-weight: 600;
-                letter-spacing: 0.02em;
-                color: #f8fafc;
+                font-size: 20px;
+                font-weight: 700;
+                line-height: 1.15;
+                margin-bottom: 6px;
+                position: relative;
+                z-index: 1;
             }
 
-            .card-hand-widget__cost-chip {
-                border-radius: 999px;
-                padding: 3px 9px;
-                background: rgba(14, 116, 144, 0.35);
-                border: 1px solid rgba(34, 211, 238, 0.45);
-                color: rgba(224, 242, 254, 0.95);
-                font-weight: 600;
-            }
-
-            .card-hand-widget__card-body {
-                display: flex;
-                flex-direction: column;
-                gap: 12px;
-                font-size: 13px;
-                color: rgba(226, 232, 240, 0.9);
-                line-height: 1.45;
-            }
-
-            .card-hand-widget__flavor {
+            .card-hand-widget__tags {
+                font-size: 12px;
                 font-style: italic;
-                color: rgba(148, 163, 184, 0.85);
+                color: rgba(82, 49, 24, 0.85);
+                margin-bottom: 12px;
             }
 
             .card-hand-widget__effect {
                 display: flex;
                 flex-direction: column;
-                gap: 5px;
+                gap: 6px;
+                font-size: 14px;
+                line-height: 1.45;
+                position: relative;
+                z-index: 1;
+            }
+
+            .card-hand-widget__effect-label {
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.16em;
+                color: rgba(64, 36, 18, 0.8);
             }
 
             .card-hand-widget__effect-text {
                 margin: 0;
-                font-size: 14px;
-                color: rgba(148, 163, 184, 0.95);
+                color: rgba(52, 28, 14, 0.95);
+            }
+
+            .card-hand-widget__flavor {
+                margin-top: 18px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(86, 51, 27, 0.35);
+                font-size: 12px;
+                font-style: italic;
+                color: rgba(70, 42, 22, 0.8);
+                position: relative;
+                z-index: 1;
+            }
+
+            .card-hand-widget__footer {
+                margin-top: auto;
+                display: flex;
+                gap: 8px;
+                justify-content: space-between;
+                font-size: 11px;
+                color: rgba(70, 42, 22, 0.72);
+                position: relative;
+                z-index: 1;
+            }
+
+            .card-hand-widget__footer span {
+                white-space: nowrap;
+            }
+
+            .card-hand-widget__cost-badge {
+                position: absolute;
+                top: 18px;
+                right: 18px;
+                width: 42px;
+                height: 42px;
+                border-radius: 50%;
+                background: radial-gradient(circle at 30% 30%, #fdf5dc, #d9ad6a 70%, #b88035 100%);
+                border: 2px solid rgba(120, 72, 32, 0.85);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 700;
+                font-size: 18px;
+                color: #3e220f;
+                box-shadow: 0 10px 18px rgba(73, 45, 22, 0.4);
+                z-index: 2;
             }
 
             .card-hand-widget__shade {
@@ -1171,7 +1377,7 @@ export class CardHandView implements CardHandDndSurface {
 
             .card-hand-widget__card-wrapper--dragging {
                 transform: translateZ(${CARD_ELEVATION}px) scale(1.02);
-                filter: drop-shadow(0 18px 32px rgba(15, 23, 42, 0.55));
+                filter: drop-shadow(0 18px 32px rgba(73, 45, 22, 0.55));
             }
 
             .card-hand-widget__card-wrapper--error {
