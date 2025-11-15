@@ -1035,6 +1035,9 @@ export class CardHandView implements CardHandDndSurface {
                 display: block;
                 width: 100%;
                 max-width: 100%;
+                height: auto;
+                min-height: 0;
+                /* можно задать aspect-ratio или max-height вместо фиксированного height */
                 background: transparent;
                 border: none;
                 padding: 0;
